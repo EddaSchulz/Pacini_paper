@@ -1,2 +1,3 @@
 # 2020.7.6
-Upload count matrices and gene/sample annotations
+**Analyses:** Upload count matrices and gene/sample annotations 
+**Alignment:** Upload ERCC-92 FASTA sequences. The Rapid Run and High Output mode mESC FASTQ files can be downloaded through the GEO accession number GSE151009
