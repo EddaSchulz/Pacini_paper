@@ -15,4 +15,7 @@ Furthermore, the following softwares have to be installed:
 - STAR (v.2.5.2b) software from "https://github.com/alexdobin/STAR"
 - R (v.3.6.1) software from "https://cran.r-project.org/"
 
-Finally, the following R libraries have to be installed: plyr (v.1.8.6), data.table (v.1.12.8), biomaRt (v.2.40.5)
+Finally, the following R libraries have to be installed: 
+- plyr (v.1.8.6)
+- data.table (v.1.12.8)
+- biomaRt (v.2.40.5)
