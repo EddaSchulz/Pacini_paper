@@ -1,1 +1,35 @@
-temp
+A number of analyses were performed on the count matrices derived by the read alignment and gene expression quantification steps. This folder includes the R script used to perform each analysis ("analysis.Rnw"), the input data sets ("data/") and the expected results ("output/"). Where the "analysis.Rnw" script takes as input the count matrices and gene annotations stored in the "data/" directory, and store the results of each analysis in the "output/" folder.
+
+# 2020.7.7: Upload scripts
+
+The "analysis.Rnw" can be run using R (v.3.6.1) software, available at "https://cran.r-project.org/". In detail, the script requires the installation of the following R packages:
+- cluster (v.2.1.0)
+- cumstats (v.1.0)
+- data.table (v.1.12.8)
+- doParallel (v.1.0.15)
+- dplyr (v.1.0)
+- edgeR (v.3.26.8)
+- foreach (v.1.5.0)
+- gdata (v.2.18.0)
+- GenomicAlignments (v.1.20.1)
+- ggalluvial (v.0.11.3)
+- ggplot2 (v.3.3.2)
+- ggrepel (v.0.8.2)
+- gridExtra (v.2.3)
+- limma (v.3.40.6)
+- lsr (v.0.5)
+- magrittr (v.1.5)
+- MAST (v.1.10)
+- monocle (v.2.12.0)
+- pcaMethods (v.1.76.0)
+- pheatmap (v.1.0.12)
+- RColorBrewer (v.1.1-2)
+- Rsamtools (v.2.0.3)
+- scales (v.1.1.1)
+- scran (v.1.12.1)
+- SingleCellExperiment (v.1.6.0)
+- tidyr (v.1.1.0)
+- umap (v.0.2.6.0)
+- UpSetR (v.1.4.0)
+- velocyto.R (v.0.6)
+- zoo (v.1.8-8)
