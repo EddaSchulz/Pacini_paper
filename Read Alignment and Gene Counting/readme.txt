@@ -4,7 +4,7 @@ Single cell RNA-Seq reads derived from differentiating B6xCast mouse ESC hybrids
 All the steps for scRNA-Seq read alignment and gene counting are described in the 'alignment.Rnw' script. This analysis is performed combining R, PERL and JAVA scripts. 
 
 In order to reproduce the analyses described in "alignment.Rnw", the following files have to be downloaded:
-- scRNA-Seq FASTQ files ("High Output" and "Rapid Run") and *cellular* **barcodes** ('GSE151009_RowBarcodes.txt.gz') through the GEO repository "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE151009"
+- scRNA-Seq FASTQ files ("High Output" and "Rapid Run") and cellular barcodes ('GSE151009_RowBarcodes.txt.gz') through the GEO repository "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE151009"
 - Mouse mm10 FASTA ("Mus_musculus.GRCm38.dna_sm.primary_assembly.fa.gz") and GTF ("Mus_musculus.GRCm38.90.gtf.gz") files from "http://www.ensembl.org/Mus_musculus/Info/Index"
 - ERCC92 spike-in FASTA ("ERCC92.fa") and GTF ("ERCC92.gtf") from the GitHub repository
 - B6 x Cast SNPs ("mgp.v5.merged.snps_all.dbSNP142.vcf.gz") from "ftp://ftp-mouse.sanger.ac.uk/REL-1505-SNPs_Indels/"
@@ -16,4 +16,3 @@ Furthermore, the following softwares have to be installed:
 - R (v.3.6.1) software from "https://cran.r-project.org/"
 
 Finally, the following R libraries have to be installed: plyr (v.1.8.6), data.table (v.1.12.8), biomaRt (v.2.40.5)
- 
