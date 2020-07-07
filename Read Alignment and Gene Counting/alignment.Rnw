@@ -1,0 +1,726 @@
+\documentclass[a4paper]{article}
+\usepackage[cm]{fullpage}
+\usepackage{pdflscape, amsmath, amssymb, pgffor}
+\usepackage{caption, graphics, subcaption}
+\usepackage{listings}
+\usepackage{courier}
+\usepackage{color}
+\usepackage{hyperref}
+\hypersetup{pdftex, colorlinks=true, linktoc=all, linkcolor=black}
+
+\lstset{
+basicstyle=\footnotesize\ttfamily,
+breaklines=true
+}
+
+
+\usepackage{Sweave}
+\begin{document}
+
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{fontsize=\scriptsize}
+\DefineVerbatimEnvironment{Sinput}{Verbatim}{fontsize=\footnotesize}
+\SweaveOpts{concordance=TRUE, keep.source=FALSE, prefix.string=figures/fig}
+
+\title{Read alignment and gene counting}
+
+
+
+\section{Exon-overlapping read alignment and gene expression}
+
+\subsection{Define paths}
+
+\noindent The FASTQ files can be downloaded through the GEO accession number GSE151009. Store the \textit{High Output} FASTQ files on \texttt{./Sequencing_Output/HighOutput/}, and the \textit{Rapid Run} files on \texttt{./Sequencing_Output/RapidRun/}
+<<>>=
+path <- getwd()
+scriptpath <- paste0(path, "/Scripts/"); dir.create(path = seqpath, showWarnings = FALSE, recursive = TRUE)
+seqpath <- paste0(path, "/Sequencing_Output/"); dir.create(path = seqpath, showWarnings = FALSE, recursive = TRUE)
+seqpath_ho <- paste0(seqpath, "/HighOutput/"); dir.create(path = seqpath_ho, showWarnings = FALSE, recursive = TRUE)
+seqpath_rr <- paste0(seqpath, "/RapidRun/"); dir.create(path = seqpath_rr, showWarnings = FALSE, recursive = TRUE)
+@
+
+
+\subsection{Load and store biomart annotation}
+<<>>=
+library(biomaRt)
+mart <- useMart("ensembl")
+mart <- useDataset("mmusculus_gene_ensembl", mart = mart)
+features <- listAttributes(mart)
+bm <- getBM(attributes=c('mgi_symbol', 'chromosome_name', 'entrezgene',
+                       'strand', 'start_position', 'end_position', 
+                       'percentage_gene_gc_content', 'ensembl_gene_id', 
+                       'gene_biotype', 'go_linkage_type', 'namespace_1003', 'name_1006', 'go_id', 'description'),
+          mart = mart)
+save(bm, file = paste0(path, "/bm.RData"))
+@
+
+\subsection{Prepare fasta, gtf and dictionary files}
+
+\subsubsection{FASTA and GTF: Combine r90 GRCm38 mm10 with ERCC92 sequences}
+
+\noindent Download the FASTA file (\texttt{Mus_musculus.GRCm38.dna\_sm.primary\_assembly.fa.gz}) and GTF annotation file (\texttt{Mus\_musculus.GRCm38.90.gtf.gz}) from \texttt{http://www.ensembl.org/Mus\_musculus/Info/Index} and store it in a new folder named \texttt{mm10} on your working directory. Download the ERCC92 FASTA and GTF files (\texttt{ERCC92.fa} and \texttt{ERCC92.gtf}) from \textit{https://github.com/EddaSchulz/Pacini\_paper/} and store them in the \texttt{mm10} folder. Combine the mouse and spike-in sequences and annotation files, and store them in the \texttt{mm10} folder.
+
+\begin{lstlisting}[language=bash]
+mm10path=$(PWD)'/mm10/'
+mkdir -p $mm10path
+gunzip -dk $mm10path'Mus_musculus.GRCm38.dna_sm.primary_assembly.fa.gz'
+gunzip -dk $mm10path'Mus_musculus.GRCm38.90.gtf.gz'
+cat $mm10path'Mus_musculus.GRCm38.dna_sm.primary_assembly.fa' $mm10path'ERCC92.fa' > $mm10path'mm10ERCC.fasta'
+cat $mm10path'Mus_musculus.GRCm38.90.gtf' $mm10path'ERCC92.gtf' > $mm10path'mm10ERCC.gtf'
+\end{lstlisting}
+
+\subsubsection{Define dictionary and refFlat files using Picard and DropSeq tools respectively}
+
+\noindent Use Picard functions to define dictionary. Then download Drop-seq java scripts (v1.12) from \textit{https://github.com/broadinstitute/Drop-seq/}, and use the ConvertToRefFlat function to create a refFlat file. Both the Picard and Drop-Seq functions are stored in the \texttt{scriptpath} folder.
+
+\begin{lstlisting}[language=bash]
+scriptpath=$(PWD)'/Scripts/'
+mkdir -p $scriptpath
+
+java -jar $scriptpath'picard-2.7.1/picard.jar' CreateSequenceDictionary \
+  REFERENCE=$mm10path'mm10ERCC.fasta' \
+  OUTPUT=$mm10path'mm10ERCC.dict'
+  
+java -jar $scriptpath'Drop-seq_tools-1.12/jar/dropseq.jar' ConvertToRefFlat \
+  ANNOTATIONS_FILE=$mm10path'mm10ERCC.gtf' \
+  SEQUENCE_DICTIONARY=$mm10path'mm10ERCC.dict' \
+  OUTPUT=$mm10path'mm10ERCC.refFlat'
+\end{lstlisting}
+
+
+
+\subsection{Generate N-masked FASTA sequence}
+
+\noindent Download the SNPs between the Cast and BL6 mm10 cell lines from \texttt{ftp://ftp-mouse.sanger.ac.uk/REL-1505-SNPs\_Indels/mgp.v5.merged.snps\_all.dbSNP142.vcf.gz}, and store the file in the \texttt{mm10} folder. Download SNPsplit PERL script from \texttt{https://www.bioinformatics.babraham.ac.uk/projects/SNPsplit/}.
+
+\subsection{N-mask FASTA sequence using SNPsplit}
+
+\noindent Create a masked mm10 genome, where the annotated SNPs between the two mouse lines are masked. Every N-masked chromosome will be stored in the \texttt{$mm10path'Cast\_BL6\_Genomes/CAST\_EiJ\_N-masked/} folder.
+
+\begin{lstlisting}[language=bash]
+SNPsplit_genome_preparation --vcf_file $mm10path'mgp.v5.merged.snps_all.dbSNP142.vcf.gz' \
+                            --strain 'CAST_EiJ' \
+                            --reference_genome $mm10path \
+                            --skip_filtering \
+                            --nmasking
+\end{lstlisting}[language=bash]
+
+\noindent Concatenate the N-masked chromosome FASTA files into a single one.
+
+\begin{lstlisting}[language=bash]
+chr=( $(seq 1 19) "MT" "X" "Y" )
+masked_fasta=$mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_new.fa'
+touch $masked_fasta
+
+for i in ${chr[@]}
+do
+cat $mm10path'Cast_BL6_Genomes/CAST_EiJ_N-masked/chr'$i'.N-masked.fa' >> $masked_fasta
+done
+\end{lstlisting}[language=bash]
+
+
+
+\subsection{Define STAR indices for masked genome}
+
+\noindent Define a new directory that will store the STAR indices to align the High Output and Rapid Run FASTQ files.
+
+\begin{lstlisting}[language=bash]
+ho_index=$(PWD)'/Sequencing_Output/HighOutput/mm10ERCC_Index/'
+mkdir -p $ho_index
+rr_index=$(PWD)'/Sequencing_Output/RapidRun/mm10ERCC_Index/'
+mkdir -p $rr_index
+\end{lstlisting}[language=bash]
+
+\noindent Following this, the STAR aligner can be downloaded from \texttt{https://github.com/alexdobin/STAR}, and stored in the \texttt{scriptpath} folder.
+
+
+\subsubsection{High Output}
+
+\noindent Given that the R2 is 48 bp-long, when defining the index for the STAR aligner, the \texttt{sjdbOverhang} parameter has to be set to 47 (i.e. read.length - 1). The index is then saved into the \texttt{HighOutput/mm10ERCC\_Index/} directory. On the other hand, for the \textit{RapidRun}, this parameter is set to 35 since the reads have length of 36bps.
+
+\begin{lstlisting}[language=bash]
+
+%%% bind to spike-in genome
+cat $mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_new.fa' $mm10path'ERCC92.fa' > $mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.fa'
+
+%%% create sequence dictionary for new fasta file
+java -jar $scriptpath'picard-2.7.1/picard.jar' CreateSequenceDictionary \
+  REFERENCE=$mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.fa' \
+  OUTPUT=$mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.dict'
+  
+mkdir -p $mm10path'Cast_BL6_Genomes/CompleteAnnotationIndices'
+$scriptpath'STAR-STAR_2.4.2a/bin/Linux_x86_64/STAR' \
+  --runThreadN 5 \
+  --runMode genomeGenerate \
+  --genomeDir $mm10path'Cast_BL6_Genomes/CompleteAnnotationIndices' \
+  --genomeFastaFiles $mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.fa \
+  --sjdbGTFfile $mm10path'mm10ERCC.gtf' \
+  --sjdbOverhang 47
+\end{lstlisting}
+
+\subsubsection{Rapid Run}
+
+\begin{lstlisting}[language=bash]
+mkdir -p $mm10path'Cast_BL6_Genomes/CompleteAnnotationIndices_RapidRun'
+$scriptpath'STAR-STAR_2.4.2a/bin/Linux_x86_64/STAR' \
+  --runThreadN 5 \
+  --runMode genomeGenerate \
+  --genomeDir $mm10path'Cast_BL6_Genomes/CompleteAnnotationIndices_RapidRun' \
+  --genomeFastaFiles $mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.fa \
+  --sjdbGTFfile $mm10path'mm10ERCC.gtf' \
+  --sjdbOverhang 35
+\end{lstlisting}
+
+
+
+\subsection{Read alignment}
+
+\noindent Download all the bash scripts required for reads alignment from \textit{https://github.com/EddaSchulz/Pacini\_paper/} (stored at: \textit{Scripts/Alignment/}) and save them in the \texttt{scriptpath} folder. Furthermore, download the \texttt{RowBarcodes.txt} file, containing the 6bp long cellular barcodes that will be used for read demultiplexing, and store it in the \texttt{scriptpath} folder.
+
+\subsubsection{Read demultiplexing - High Output}
+
+<<>>=
+files <- list.files(path = seqpath_ho)
+files <- files[grepl(pattern = "^mpimg", x = files)]
+files <- unique(strsplit2(files, split = "_R")[,1])
+
+## remove bulk
+files <- files[!grepl(files, pattern = "BULK")]
+write.table(x = files, file = paste0(seqpath_ho, "column_names.txt"), quote = FALSE, sep = "\n", row.names = FALSE, col.names = FALSE)
+
+### combinations text file
+deconvoluted_samples_names <- paste0(rep(paste0("Col_", paste0(rep(c("0", ""), times = c(9,11)), 1:20)), each = 40), rep(paste0("_Row_", 1:40), times = 20))
+write.table(x = deconvoluted_samples_names, file = paste0(seqpath_ho, "trimmed_sample_names.txt"), quote = F, sep = "\n", row.names = F, col.names = F)
+
+for(i in 1:20){
+  if(i %in% 1:9){
+    i <- paste0("0", i)
+  }
+  deconvoluted_samples_names <- paste0(rep(paste0("Col_", i), each = 40), rep(paste0("_Row_", 1:40)))
+  write.table(x = deconvoluted_samples_names, file = paste0(seqpath_ho, "trimmed_sample_", i, ".txt"), quote = F, sep = "\n", row.names = F, col.names = F)
+}
+@
+
+\begin{lstlisting}[language=bash]
+seqoutput=$(PWD)'/Sequencing_Output/HighOutput/'
+dmpx=$(PWD)'/Sequencing_Output/HighOutput/'
+colnames=$(PWD)'/Sequencing_Output/HighOutput/column_names.txt'
+
+$scriptpath'CompleteLaunch_Pipeline.sh' \
+$scriptpath \
+$seqoutput \
+$dmpx \
+$colnames
+\end{lstlisting}
+
+\noindent The demultiplexed fastq files are stored in the directory: \texttt{./Sequencing_Output/HighOutput/MergedBAM/DemplxBAM/}.
+
+\subsubsection{Read demultiplexing - Rapid Run}
+<<>>=
+files <- list.files(path = seqpath_rr)
+files <- files[grepl(pattern = "^mpimg", x = files)]
+files <- unique(strsplit2(files, split = "_R")[,1])
+
+## remove bulk
+files <- files[!grepl(files, pattern = "BULK")]
+write.table(x = files, file = paste0(seqpath_rr, "column_names.txt"), quote = FALSE, sep = "\n", row.names = FALSE, col.names = FALSE)
+@
+
+\begin{lstlisting}[language=bash]
+seqoutput=$(PWD)'/Sequencing_Output/RapidRun/'
+dmpx=$(PWD)'/Sequencing_Output/RapidRun/'
+colnames=$(PWD)'/Sequencing_Output/RapidRun/column_names.txt'
+
+$scriptpath'CompleteLaunch_Pipeline.sh' \
+$scriptpath \
+$seqoutput \
+$dmpx \
+$colnames
+\end{lstlisting}
+
+\noindent The demultiplexed fastq files are stored in the directory: \texttt{./Sequencing_Output/RapidRun/MergedBAM/DemplxBAM/}.
+
+
+
+\subsubsection{Single cell STAR alignment - High Output}
+
+\noindent The previously demultiplexed data can be used as an input to the allele-specific alignment procedure.
+<<>>=
+f <- list.files(path = paste0(seqpath_ho, "MergedBAM/DemplxBAM/"))
+write.table(f, file = paste0(seqpath_ho, "STAR_fastqfiles_perTimePoint.txt"), 
+            sep = "\n", col.names = FALSE, row.names = FALSE, append = FALSE, quote = FALSE)
+@
+
+\noindent Download the high quality SNPs (\texttt{GSE151009\_SNPs\_B6\_Cast.txt.gz}) from \textit{https://github.com/EddaSchulz/Pacini\_paper/}, and store them in the \texttt{./Sequencing\_Output/} folder.
+
+\begin{lstlisting}[language=bash]
+as_alignment= $(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/'
+mkdir -p $as_alignment'STAR/'
+dmpx=$(PWD)'/Sequencing_Output/HighOutput/MergedBAM/DemplxBAM/'
+fqf=$(PWD)'/Sequencing_Output/HighOutput/STAR_fastqfiles_perTimePoint.txt'
+snps=$(PWD)'/Sequencing_Output/GSE151009_SNPs_B6\_Cast.txt'
+
+let mismatch=2
+let multimap=1
+
+$scriptpath'CompleteLaunch_STAR_timepoints_AS.sh' \
+  $scriptpath \
+  $dmpx \
+  $as_alignment \
+  $mismatch \
+  $ho_index \
+  $multimap \
+  $fqf \
+  $snps
+\end{lstlisting}
+
+\noindent The aligned BAM files are stored in the directory: \texttt{/Sequencing\_Output/HighOutput/AlleleSpecific/STAR/}, divided for each time point and cell. Furthermore, each file (aligned to the masked genome) is splitted into Cast and B6 reads through the \texttt{SNPsplit} software. This results in 3 aligned files per cell:
+
+\begin{itemize}
+\item \texttt{Aligned.sortedByCoord.out.bam}: reads aligned to masked genome
+\item \texttt{Aligned.sortedByCoord.out.genome1.bam}: reads aligned to masked genome and overlapping SNP, assigned to B6 genome
+\item \texttt{Aligned.sortedByCoord.out.genome2.bam}: reads aligned to masked genome and overlapping SNP, assigned to Cast genome
+\end{itemize}
+
+\subsubsection{Single cell STAR alignment - Rapid Run}
+
+\noindent The previously demultiplexed data can be used as an input to the allele-specific alignment procedure.
+<<>>=
+f <- list.files(path = paste0(seqpath_rr, "MergedBAM/DemplxBAM/"))
+write.table(f, file = paste0(seqpath_rr, "STAR_fastqfiles_perTimePoint.txt"), 
+            sep = "\n", col.names = FALSE, row.names = FALSE, append = FALSE, quote = FALSE)
+@
+
+\begin{lstlisting}[language=bash]
+as_alignment= $(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/'
+mkdir -p $as_alignment'STAR/'
+dmpx=$(PWD)'/Sequencing_Output/RapidRun/MergedBAM/DemplxBAM/'
+fqf=$(PWD)'/Sequencing_Output/RapidRun/STAR_fastqfiles_perTimePoint.txt'
+snps=$(PWD)'/Sequencing_Output/GSE151009_SNPs_B6\_Cast.txt'
+
+let mismatch=2
+let multimap=1
+
+$scriptpath'CompleteLaunch_STAR_timepoints_AS.sh' \
+  $scriptpath \
+  $dmpx \
+  $as_alignment \
+  $mismatch \
+  $ho_index \
+  $multimap \
+  $fqf \
+  $snps
+\end{lstlisting}
+
+\noindent The aligned BAM files are stored in the directory: \texttt{/Sequencing\_Output/RapidRun/AlleleSpecific/STAR/}, where aligned files are stored for all cells at day 1 of differentiation. Like in the complete alignment, 3 aligned files are generated per cell (notAS and 2 AS BAM files).
+
+
+\subsection{Define count matrices}
+
+\noindent Merge the sorted alignment from STAR with the Unaligned filtered BAM and Tag exonic reads.
+
+\subsubsection{Gene counting - High Output}
+
+\noindent The code below takes every notAS aligned file (i.e. \texttt{Aligned.sortedByCoord.out.bam}) and merges it with the unaligned file (i.e. the sorted BAM version of the fastq file), and tags with a \texttt{GE} tag all reads overlapping an annotated region according to the annotation file \texttt{mm10ERCC.gtf}. Following this the counts matrices are stored in the \texttt{./Sequencing_Output/HighOutput/maskedgenome/DGE/} directory, such that:
+
+\begin{itemize}
+\item \texttt{Col\_01\_Row\_1\_unique\_notUMI\_dge.txt}: contains counts per genes from all exonic reads
+\item \texttt{Col\_01\_Row\_1\_unique\_UMI\_dge.txt}: contains counts per genes from exonic reads with a unique UMI barcode per gene
+\item \texttt{Col\_01\_Row\_1\_genome1\_unique\_UMI\_dge.txt}: contains B6 counts from exonic reads with a unique UMI barcode per gene
+\item \texttt{Col\_01\_Row\_1\_genome2\_unique\_UMI\_dge.txt}: contains Cast counts from exonic reads with a unique UMI barcode per gene
+\end{itemize}
+
+\begin{lstlisting}[language=bash]
+inpath=$(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/'
+outpath=$(PWD)'/Sequencing_Output/HighOutput/maskedgenome/'
+unaligned_path=$(PWD)'/Sequencing_Output/HighOutput/MergedBAM/DemplxBAM/'
+annotation=$mm10path'mm10ERCC.gtf'
+samplenames=$(PWD)'/Sequencing_Output/HighOutput/trimmed_sample_names.txt'
+fqf=$(PWD)'/Sequencing_Output/HighOutput/STAR_fastqfiles_perTimePoint.txt'
+mkdir -p $outpath
+
+$scriptpath'CompleteLaunch_Final_notAS.sh' \
+$scriptpath \
+$inpath \
+$samplenames \
+TRUE \
+$mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.fa' \
+$annotation \
+$scriptpath'RowBarcodes.txt' \
+$outpath \
+$fqf \
+$unaligned_path
+\end{lstlisting}
+
+
+\subsubsection{Gene counting - Rapid Run}
+
+\noindent Similarly to the previous section, the count matrices are all stored at \texttt{./Sequencing_Output/RapidRun/maskedgenome/DGE/} from cells sequenced at day 1 after differentiation.
+
+\begin{lstlisting}[language=bash]
+inpath=$(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/'
+outpath=$(PWD)'/Sequencing_Output/RapidRun/maskedgenome/'
+unaligned_path=$(PWD)'/Sequencing_Output/RapidRun/MergedBAM/DemplxBAM/'
+annotation=$mm10path'mm10ERCC.gtf'
+samplenames=$(PWD)'/Sequencing_Output/RapidRun/trimmed_sample_names.txt'
+fqf=$(PWD)'/Sequencing_Output/RapidRun/STAR_fastqfiles_perTimePoint.txt'
+mkdir -p $outpath
+
+$scriptpath'CompleteLaunch_Final_notAS.sh' \
+$scriptpath \
+$inpath \
+$samplenames \
+TRUE \
+$mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.fa' \
+$annotation \
+$scriptpath'RowBarcodes.txt' \
+$outpath \
+$fqf \
+$unaligned_path
+\end{lstlisting}
+
+
+
+
+
+
+
+
+
+
+\section{Spliced and Unspliced gene expression}
+
+\subsection{Define intronic and intronic-exonic gene GTF files}
+
+\subsubsection{Load gtf file into R}
+<<>>=
+gtf <- fread(input = paste0(path, "/mm10/mm10ERCC.gtf")); gtf <- data.frame(gtf)
+gtf_features <- gtf[, -ncol(gtf)]
+gtf_attributes <- strsplit2(gtf$V9, split = ";")
+gtf_attributes <- gsub(gsub(x = gtf_attributes, 
+                            pattern = ".* \"", 
+                            replacement = ""), 
+                       pattern = "\"", replacement = "")
+gtf <- cbind(gtf_features, gtf_attributes)
+gtf <- data.frame(gtf)
+colnames(gtf) <- c("chromosome", "source", "feature", "start", "end", "score", "strand", "frame",
+                   "att_gene_id", "att_gene_version", 
+                   "att_transcript_id", "att_transcript_version", "att_exon_number",
+                   "att_gene_name", "att_gene_source", "att_gene_biotype", 
+                   "att_transcript_name", "att_transcript_source",
+                   "att_transcript_biotype", "att_tag", "att_ccds_id", "att_exon_id", "att_exon_version",
+                   "att_tag", "att_tag", "att_tag", "att_tag", "att_transcript_support_level")
+annot_path <- paste0(path, "/mm10/AnnotIntron/"); dir.create(path = annot_path, recursive = T)
+save(gtf, file = paste0(annot_path, "/mm10/gtf_object.RData"))
+@
+
+\subsubsection{Generate GTF file for whole and intronic gene region}
+<<>>=
+exons <- gtf[gtf$feature == "exon",]
+exons$id <- paste0(exons$start, "_", exons$end)
+exon_pergene <- ddply(exons[, c("att_gene_id", "id")], .variables = .(att_gene_id), summarize, 
+                      n = length(unique(id)))
+genes <- unique(gtf$att_gene_id)
+genes_exons <- as.character(exon_pergene$att_gene_id[exon_pergene$n>1])
+
+for(j in 1:length(genes_exons)){
+  print(paste0("Processing gene ", j, " over ", length(genes_exons), "..."))
+  g <- as.character(genes_exons[j])
+  
+  if(!grepl(g, pattern = "^ERCC")){
+    temp <- gtf[gtf$att_gene_id %in% g,]
+    
+    #features
+    chromosome <- unique(temp$chromosome); 
+    source <- unique(c(strsplit2(unique(temp$source), split = "_"))); source <- source[source!=""]
+    source <- paste0(source[order(source)], collapse = "_")
+    minstart <- min(temp$start); maxend <- max(temp$end); score <- unique(temp$score); strand <- unique(temp$strand); frame <- "."
+    
+    # attributes gene
+    gene_id <- unique(temp$att_gene_id)
+    gene_version <- unique(temp$att_gene_version)
+    gene_name <- unique(temp$att_transcript_id[temp$feature == "gene"])
+    gene_source <- source
+    gene_biotype <- unique(temp$att_exon_number[temp$feature == "gene"])
+    
+    # attributes transcript
+    transcript_id <- paste0(unique(temp$att_transcript_id[temp$feature == "transcript"]), collapse = "_")
+    transcript_version <- paste0(unique(temp$att_transcript_version[temp$feature == "transcript"]), collapse = "_")
+    transcript_name <- paste0(unique(temp$att_transcript_name[temp$feature == "exon"]), collapse = "_")
+    transcript_source <- source
+    transcript_biotype <- paste0(unique(temp$att_transcript_biotype[temp$feature == "transcript"]), collapse = "_")
+    tag <- paste0(unique(temp$att_tag[temp$feature == "transcript"]), collapse = "_")
+    transcript_support_level <- paste0(unique(temp$att_transcript_support_level[temp$feature == "transcript"]), collapse = "_")
+    
+    # attributes exon
+    exon_number <- NA
+    exon_id <- paste0(unique(temp$att_exon_id[temp$feature == "exon"]), collapse = "_")
+    exon_version <- paste0(unique(temp$att_exon_version[temp$feature == "exon"]), collapse = "_")
+  
+    # identify intronic regions
+    exons <- temp[temp$feature == "exon",]
+    exons <- exons[order(exons$start, decreasing = FALSE),]
+    ex <- exons[, c("start", "end")]
+    
+    if(nrow(ex)>1){
+      intron_present <- TRUE
+      intron <- ex[1,]
+      for(i in 2:nrow(ex)){
+        x <- ex$start[i]:ex$end[i]; y <- intron$start[nrow(intron)]:intron$end[nrow(intron)]
+        if(length(intersect(x,y))>0){
+          intron <- rbind(intron[-nrow(intron),], 
+                          data.frame(start = min(c(ex$start[i], intron$start[nrow(intron)])),
+                                     end = max(c(ex$end[i], intron$end[nrow(intron)]))))
+        }else{
+          intron <- rbind(intron, ex[i,])
+        }
+      }
+      
+      if(nrow(intron)>1){
+        intron$start_p1 <- intron$start[c(2:nrow(intron), NA)]; intron <- intron[-nrow(intron),]
+        intron$start_intron <- intron$end+1; intron$end_intron <- intron$start_p1-1
+        intron <- intron[intron$start_intron<intron$end_intron,]
+        if(nrow(intron)>0){
+          intron_start <- min(intron$end)+1; intron_end <- max(intron$start_p1-1)
+        }else{
+          intron_present <- FALSE
+        }
+      }else{
+        intron_present <- FALSE
+      }
+    }else{
+      intron_present <- FALSE
+    }
+      
+    
+    ##########################
+    ## generate gtf files
+    ##########################
+    
+    ####################
+    # 1) complete gene
+    
+    # gene-features
+    names <- c("gene_id", "gene_version", "gene_name", "gene_source", "gene_biotype")
+    variables <- c(as.character(gene_id), as.character(gene_version), as.character(gene_name), as.character(gene_source), as.character(gene_biotype))
+    id_gene <- data.frame(names, variables); id_gene <- id_gene[!id_gene$variables %in% "",]; id_gene$id <- paste0(id_gene$names, ' "', id_gene$variables, '"')
+    id_gene <- paste0(paste0(id_gene$id, collapse = "; "), ";")
+    
+    # transcript-features
+    names <- c("gene_id", "gene_version", "transcript_id", "transcript_version", "gene_name", "gene_source", "gene_biotype", "transcript_name", "transcript_source", "transcript_biotype", "tag", "transcript_support_level")
+    variables <- c(as.character(gene_id), as.character(gene_version), as.character(transcript_id), as.character(transcript_version), as.character(gene_name), as.character(gene_source), as.character(gene_biotype), as.character(transcript_name), as.character(transcript_source), as.character(transcript_biotype), as.character(tag), as.character(transcript_support_level))
+    id_trans <- data.frame(names, variables); id_trans <- id_trans[!id_trans$variables %in% "",]; id_trans$id <- paste0(id_trans$names, ' "', id_trans$variables, '"')
+    id_trans <- paste0(paste0(id_trans$id, collapse = "; "), ";")
+    
+    # exons-features
+    names <- c("gene_id", "gene_version", "transcript_id", "transcript_version", "exon_number", "gene_name", "gene_source", "gene_biotype", "transcript_name", "transcript_source", "transcript_biotype", "exon_id", "exon_version", "tag", "transcript_support_level")
+    exon_number <- 1
+    variables <- c(as.character(gene_id), as.character(gene_version), as.character(transcript_id), as.character(transcript_version), as.character(exon_number), as.character(gene_name), as.character(gene_source), as.character(gene_biotype), as.character(transcript_name), as.character(transcript_source), as.character(transcript_biotype), as.character(exon_id), as.character(exon_version), as.character(tag), as.character(transcript_support_level))
+    id_exon <- data.frame(names, variables); id_exon <- id_exon[!id_exon$variables %in% "",]; id_exon$id <- paste0(id_exon$names, ' "', id_exon$variables, '"')
+    id_exon <- paste0(paste0(id_exon$id, collapse = "; "), ";")
+    completegene <- cbind(chromosome, source, c("gene", "transcript", "exon"), 
+                          minstart, maxend, score, strand, frame, 
+                          c(id_gene, id_trans, id_exon))
+    wholegene <- apply(completegene, 1, function(x) return(paste0(x, collapse = "\t")))
+    write(wholegene, file = paste0(annot_path, "wholegene_complete.gtf"), append=TRUE, sep = "\n")
+    
+    if(intron_present == TRUE){
+      
+      ####################
+      # 2) introns
+      
+      # exons-features
+      names <- c("gene_id", "gene_version", "transcript_id", "transcript_version", "exon_number", "gene_name", "gene_source", "gene_biotype", "transcript_name", "transcript_source", "transcript_biotype", "exon_id", "exon_version", "tag", "transcript_support_level")
+      exon_number <- seq_len(nrow(intron))
+      id <- c()
+      for(ex in exon_number){
+        variables <- c(as.character(gene_id), as.character(gene_version), as.character(transcript_id), as.character(transcript_version), as.character(ex), as.character(gene_name), as.character(gene_source), as.character(gene_biotype), as.character(transcript_name), as.character(transcript_source), as.character(transcript_biotype), as.character(exon_id), as.character(exon_version), as.character(tag), as.character(transcript_support_level))
+        id_exon <- data.frame(names, variables)
+        id_exon <- id_exon[!id_exon$variables %in% "",]
+        id_exon$id <- paste0(id_exon$names, ' "', id_exon$variables, '"')
+        id_exon <- paste0(paste0(id_exon$id, collapse = "; "), ";")
+        id <- c(id, id_exon)
+      }
+      introngene <- cbind(chromosome, source, c("gene", "transcript", rep("exon", length(id))), 
+                            c(intron_start, intron_start, intron$start_intron),
+                            c(intron_end, intron_end, intron$end_intron), 
+                            score, strand, frame, c(id_gene, id_trans, id))
+      intron <- apply(introngene, 1, function(x) return(paste0(x, collapse = "\t")))
+      write(intron, file = paste0(annot_path, "intron_complete.gtf"), append=TRUE, sep = "\n")
+    }else{
+      print(paste0("Gene ", g, " has a single exon, hence no intron annotation can be generated!"))
+      write.table(exons, file = paste0(annot_path, "nointron.txt"), append=TRUE, sep = "\t", col.names = FALSE)
+    }
+  }else{
+    print(paste0("Skip ERCC: ", g))
+  }
+}
+@
+
+\begin{lstlisting}[language=bash]
+annot_path=$(PWD)'/mm10/AnnotIntron/'
+awk '!/-Inf/' $annot_path'intron_complete.gtf' > $annot_path'intron_final.gtf'
+awk '!/-Inf/' $annot_path'wholegene_complete.gtf' > $annot_path'wholegene_final.gtf'
+\end{lstlisting}
+
+\subsection{Intronic and whole genome alignments}
+
+\subsection{Create dictionary and refFlat files for the intronic and wholegene annotations}
+
+\begin{lstlisting}[language=bash]
+java -jar $scriptpath'Drop-seq_tools-1.12/jar/dropseq.jar' ConvertToRefFlat \
+  ANNOTATIONS_FILE=$annot_path'intron_final.gtf' \
+  SEQUENCE_DICTIONARY=$mm10path'mm10ERCC.dict' \
+  OUTPUT=$annot_path'intron_final.refFlat'
+  
+java -jar $scriptpath'Drop-seq_tools-1.12/jar/dropseq.jar' ConvertToRefFlat \
+  ANNOTATIONS_FILE=$annot_path'wholegene_final.gtf' \
+  SEQUENCE_DICTIONARY=$mm10path'mm10ERCC.dict' \
+  OUTPUT=$annot_path'wholegene_final.refFlat'
+\end{lstlisting}
+
+
+\subsection{Define count matrices}
+
+\noindent Here we use the previously aligned files that are stored respectively for the High Output and Rapid Run sequencing runs in the directories:
+
+\begin{itemize}
+\item \texttt{./Sequencing\_Output/HighOutput/AlleleSpecific/STAR/}
+\item \texttt{./Sequencing\_Output/RapidRun/AlleleSpecific/STAR/}
+\end{itemize}
+
+\noindent Every notAS aligned file is merged with the unaligned one, all reads overlapping with the gtf annotation are tagged with GE, and finally the notAS count matrices are stored in the following directories:
+
+\begin{lstlisting}[language=bash]
+mkdir -p $(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/maskedgenome_Introns_overlap/'
+mkdir -p $(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/maskedgenome_WholeGene_overlap/'
+\end{lstlisting}
+
+
+\subsubsection{High Output}
+
+\begin{lstlisting}[language=bash]
+% intronic
+inpath=$(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/'
+outpath=$(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/maskedgenome_Introns_overlap/'
+unaligned_path=$(PWD)'/Sequencing_Output/HighOutput/MergedBAM/DemplxBAM/'
+fqf=$(PWD)'/Sequencing_Output/HighOutput/STAR_fastqfiles_perTimePoint.txt'
+rb=$scriptpath'RowBarcodes.txt'
+masked_fasta=$mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.fa'
+samples=$(PWD)'/Sequencing_Output/HighOutput/trimmed_sample_names.txt'
+annotation=$annot_path'intron_final.gtf'
+
+$scriptpath'CompleteLaunch_Final_intronexon.sh' \
+$scriptpath \
+$inpath \
+$samples \
+TRUE \
+$masked_fasta \
+$annotation \
+$rb \
+$outpath \
+$fqf \
+$unaligned_path
+
+%whole gene
+outpath=$(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/maskedgenome_WholeGene_overlap/'
+annotation=$annot_path'wholegene_final.gtf'
+
+$scriptpath'CompleteLaunch_Final_intronexon.sh' \
+$scriptpath \
+$inpath \
+$samples \
+TRUE \
+$masked_fasta \
+$annotation \
+$rb \
+$outpath \
+$fqf \
+$unaligned_path
+
+%remove misleading reaads from either
+wholegene_path=$(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/maskedgenome_WholeGene_overlap/'
+intron_path=$(PWD)'/Sequencing_Output/HighOutput/AlleleSpecific/maskedgenome_Introns_overlap/
+
+$scriptpath'CompleteLaunch_Final_intronexon_removemisleading.sh' \
+$scriptpath \
+$inpath \
+$samples \
+TRUE \
+$masked_fasta \
+$annotation \
+$rb \
+$outpath \
+$fqf \
+$unaligned_path \
+$wholegene_path \ 
+$intron_path
+\end{lstlisting}
+
+\subsubsection{Rapid Run}
+
+\begin{lstlisting}[language=bash]
+mkdir -p $(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/maskedgenome_Introns_overlap/'
+mkdir -p $(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/maskedgenome_WholeGene_overlap/'
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash]
+% intronic
+inpath=$(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/'
+outpath=$(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/maskedgenome_Introns_overlap/'
+unaligned_path=$(PWD)'/Sequencing_Output/RapidRun/MergedBAM/DemplxBAM/'
+fqf=$(PWD)'/Sequencing_Output/RapidRun/STAR_fastqfiles_perTimePoint.txt'
+rb=$scriptpath'RowBarcodes.txt'
+masked_fasta=$mm10path'Cast_BL6_Genomes/N_masked_B6_CAST_ERCC92.fa'
+samples=$(PWD)'/Sequencing_Output/RapidRun/trimmed_sample_names.txt'
+annotation=$annot_path'intron_final.gtf'
+
+$scriptpath'CompleteLaunch_Final_intronexon.sh' \
+$scriptpath \
+$inpath \
+$samples \
+TRUE \
+$masked_fasta \
+$annotation \
+$rb \
+$outpath \
+$fqf \
+$unaligned_path
+
+%whole gene
+outpath=$(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/maskedgenome_WholeGene_overlap/'
+annotation=$annot_path'wholegene_final.gtf'
+
+$scriptpath'CompleteLaunch_Final_intronexon.sh' \
+$scriptpath \
+$inpath \
+$samples \
+TRUE \
+$masked_fasta \
+$annotation \
+$rb \
+$outpath \
+$fqf \
+$unaligned_path
+
+%remove misleading reaads from either
+wholegene_path=$(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/maskedgenome_WholeGene_overlap/'
+intron_path=$(PWD)'/Sequencing_Output/RapidRun/AlleleSpecific/maskedgenome_Introns_overlap/
+
+$scriptpath'CompleteLaunch_Final_intronexon_removemisleading.sh' \
+$scriptpath \
+$inpath \
+$samples \
+TRUE \
+$masked_fasta \
+$annotation \
+$rb \
+$outpath \
+$fqf \
+$unaligned_path \
+$wholegene_path \ 
+$intron_path
+\end{lstlisting}
+
+\noindent Where the identical UMI barcodes that are found in both Cast and B6 allele for the same gene, are classified as \textit{misleading} and removed from the gene counting procedure.
+
+\end{document}
