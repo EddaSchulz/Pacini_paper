@@ -1,0 +1,6 @@
+Time B6maHigh CastmaHigh
+0hrs 0 0
+24hrs 27 2
+48hrs 73 11
+72hrs 60 36
+96hrs 68 27
