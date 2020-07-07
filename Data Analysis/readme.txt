@@ -2,7 +2,7 @@ A number of analyses were performed on the count matrices derived by the read al
 
 # 2020.7.7: Upload scripts
 
-The "analysis.Rnw" can be run using R (v.3.6.1) software, available at "https://cran.r-project.org/". In detail, the script requires the installation of the following R packages:
+The "analysis.Rnw" can be run using R (v.3.6.1) software, available at "https://cran.r-project.org/". In order to reproduce every analysis, the installation of the following R libraries is required:
 - cluster (v.2.1.0)
 - cumstats (v.1.0)
 - data.table (v.1.12.8)
