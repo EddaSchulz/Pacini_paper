@@ -12,7 +12,7 @@ In order to reproduce the analyses described in "alignment.Rnw", the following f
 Furthermore, the following softwares have to be installed:
 - Drop-seq (v.1.12) JAVA script from "https://github.com/broadinstitute/Drop-seq/"
 - SNPsplit (v.0.3.2) PERL script from "https://www.bioinformatics.babraham.ac.uk/projects/SNPsplit/"
-- STAR (v.2.5.2b) software from "https://github.com/alexdobin/STAR"
+- STAR (v.2.5.2b) aligner from "https://github.com/alexdobin/STAR"
 - R (v.3.6.1) software from "https://cran.r-project.org/"
 
 Finally, the following R libraries have to be installed: 
