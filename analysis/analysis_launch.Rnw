@@ -1,0 +1,187 @@
+\documentclass[a4paper]{article}
+\usepackage[cm]{fullpage}
+\usepackage{pdflscape, amsmath, amssymb, pgffor}
+\usepackage{caption, graphics, subcaption}
+\usepackage{listings} %To plot the Unix script with 
+\usepackage{courier}  %same
+\usepackage{color}   %May be necessary if you want to color links
+\usepackage{hyperref}
+\hypersetup{pdftex, colorlinks=true, %set true if you want colored links
+    linktoc=all,     %set to all if you want both sections and subsections linked
+    linkcolor=black,  %choose some color if you want links to stand out
+}
+
+\lstset{
+basicstyle=\footnotesize\ttfamily,
+breaklines=true
+}
+
+
+\usepackage{Sweave}
+\begin{document}
+
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{fontsize=\scriptsize}
+\DefineVerbatimEnvironment{Sinput}{Verbatim}{fontsize=\footnotesize}
+\SweaveOpts{concordance=TRUE, keep.source=FALSE, prefix.string=figures/fig}
+
+\title{Analyses and figures}
+
+\maketitle
+\tableofcontents
+\clearpage
+
+\section{Define input/output paths}
+<<>>=
+path <- "C:/Users/pacini/Pacini_paper-master/analysis/"
+datapath <- paste0(path, "data/")
+scriptpath <- paste0(path, "scripts/")
+@
+
+\section{Define plot settings and function}
+<<>>=
+pt_conversion <- 1/2.141959
+pt_textconversion <- 0.35015
+totwidth <- 5; totheight <- 5
+panel_width_cm <- 2; panel_height_cm <- 3; strmargin <- .1
+textsize <- 6; titlesize <- 6; geomtext_size <- 6*pt_textconversion
+boxsize <- 0; outliersize <- 1e-5
+outline_size <- 5e-1*pt_conversion; tick_size <- 0
+SE_axis <- seq(0,100,25)
+linesize <- 5e-1*pt_conversion; small_scattersize <- 1e-1; scattersize <- 0.5
+arrowthick <- 4e-1; arrowidth <- 1e-1; arrowsharp <- 40
+violin_box_size <- 0.25
+hvlinesize <- 5e-1*pt_conversion; hvalpha <- 0.5
+binscatter_mult <- 1.5 
+allele_colors <- c("BA" = "#c51b8a", "B6" = "#1b9e77", "Cast" = "#d95f02")
+time_colors <- c("#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e")
+color_alleles <- c("black", "grey", "#fa9fb5", allele_colors)
+names(color_alleles) <- c("Undetected", "Low", 
+                          "Skewed", "BA",
+                          "Xist-MA (Xi=B6)", "Xist-MA (Xi=Cast)")
+comparison_colors <- c("#e7298a", "black")
+
+library(ggplot2)
+theme1 <- theme(axis.text.x = element_text(size = textsize), 
+                axis.text.y = element_text(size = textsize),
+                axis.title.x = element_text(size = titlesize), 
+                axis.title.y = element_text(size = titlesize), 
+                plot.title = element_text(lineheight = 0.8, face = "bold", size = titlesize, hjust = 0.5),
+                legend.title = element_text(size = textsize), 
+                legend.text = element_text(size = textsize),
+                legend.key.size = unit(1,"line"),
+                axis.line.x = element_line(colour = "black", size = outline_size), 
+                axis.line.y = element_line(colour = "black", size = outline_size), 
+                panel.grid.major = element_blank(), 
+                panel.grid.minor = element_blank(), 
+                strip.text.x = element_text(size = textsize), 
+                strip.text.y = element_text(size = textsize),
+                strip.background = element_blank(),
+                axis.ticks = element_line(colour = "black", size = outline_size),
+                panel.border = element_rect(color = "black", fill = NA, size = outline_size), 
+                legend.key = element_blank())
+@
+
+\subsection{Define a function to modify the size of ggplots using facet-grids}
+<<>>=
+adjust_size <- function(g = g, panel_width_cm = 5, panel_height_cm = 5, 
+                        savefile = "temp.pdf", width = totwidth, height = totheight,
+                        strptext_col = textsize, strptext_row = textsize,
+                        strpmargin_col_cm = strmargin, strpmargin_row_cm = strmargin, 
+                        flipcord = FALSE){
+  
+  if(flipcord)
+    g <- g + coord_flip()
+  
+  ## change strsplit sizes
+  g <- g + theme(strip.text.x = element_text(size = strptext_col, margin = margin(strpmargin_col_cm,0,strpmargin_col_cm,0, "cm")), 
+                 strip.text.y = element_text(size = strptext_row, margin = margin(0,strpmargin_row_cm,0,strpmargin_row_cm, "cm")))
+  
+  gt <- ggplot_gtable(ggplot_build(g))
+  
+  ## set panels width
+  which <- unique(gt$layout$l[grep("^panel", gt$layout$name)])
+  gt$widths[which] <- unit(panel_width_cm, 'cm')
+
+  ## set panels height
+  which <- unique(gt$layout$b[grep("^panel", gt$layout$name)])
+  gt$heights[which] <- unit(panel_height_cm, 'cm')
+
+  ## save plot
+  ggsave(grid.draw(gt), filename = savefile, width = width, height = height, useDingbats = FALSE)
+  # return(gt)
+}
+scientific_label <- function(l) {
+     l <- format(l, scientific = TRUE)
+     l <- gsub(l, pattern = "\\+", replacement = "")
+     l <- gsub("^(.*)e", "'\\1'e", l)
+     l <- gsub("e", "%*%10^", l); l <- gsub(l, pattern = "+", replacement = "")
+     parse(text=l)
+}
+@
+
+\section{Download count matrices and biomart gene annotation}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "Data_Download.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Data loading and pre-processing}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "Data_PreProcessing.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Figure 1: Not allele specific analysis}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "fig1_NotAS.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Figure 2: Allele specific Xist analysis}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "fig2_ASxist.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Figure 3: Allele specific Xist analysis}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "fig3_XistRegulators.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Figure 4: Chromosome-wide silencing dynamics}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "fig4_SilencingDynamics.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Figure 5: Allelic silencing dynamics}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "fig5_AllelicSilencingDynamics.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Figure 6: Experimental validation of differentially silenced genes}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "fig6_ExperimentalValidation.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+
+\end{document}
