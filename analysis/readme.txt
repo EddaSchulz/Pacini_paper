@@ -1,6 +1,6 @@
 A number of analyses were performed on the count matrices derived by the read alignment and gene expression quantification steps. This folder includes the R script used to perform each analysis ("analysis.Rnw"), the input data sets ("data/") and the expected results ("output/"). Where the "analysis.Rnw" script takes as input the count matrices and gene annotations stored in the "data/" directory, and store the results of each analysis in the "output/" folder.
 
-The "analysis_launch.Rnw" can be run using R (v.3.6.1) software (available at "https://cran.r-project.org/") in order to reproduce every analysis highlighted in the manuscript. The above R script downloads the count matrices from the GEO repository GSE151009 (available at "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE151009"), and stores the manuscript's figures and additional R objects in the "output/" directory. 
+The "analysis_launch.Rnw" can be run using R (v.3.6.1) software (available at "https://cran.r-project.org/") in order to reproduce every analysis highlighted in the manuscript. The above R script downloads the count matrices from the GEO repository GSE151009 (available at "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE151009"), launches the scripts stored in the "scripts/" folder, and stores the manuscript's figures and additional R objects in the "output/" directory. 
 
 The following R libraries are required (in brackets the library version used for data analyses):
 
