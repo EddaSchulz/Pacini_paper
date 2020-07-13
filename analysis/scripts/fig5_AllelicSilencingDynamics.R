@@ -1,4 +1,4 @@
-library(lsr); library(doParallel); library(tidyr); library(ggrepel); library(ggalluvial)
+library(lsr); library(doParallel); library(tidyr); library(ggrepel); library(ggalluvial); library(readxl)
 
 print("1) Define output path")
 outpath <- paste0(path, "output/fig5_GeneAlleleSpecificSilencing/"); dir.create(path = outpath, recursive = T, showWarnings = F)
