@@ -75,7 +75,7 @@ r$XO_filtering <- ifelse(is.na(r$b6Xratio), NA,
 remove_XOcells <- as.character(r$id[r$XO_filtering %in% TRUE])
 
 print("3.1.3) Remove cells from all DGE objects")
-files <- list.files(path = datapath, full.names = TRUE)
+files <- paste0(datapath, list.files(path = datapath))
 files <- files[grepl(files, pattern = "data/UF_")]
 for(f in files){
   load(f)
@@ -113,7 +113,8 @@ remove_notas <- GF_notas$detrate <= 0.2 | (GF_notas$misleadingSNP_filtering & !G
 remove_as <- GF_as$detrate <= 0.2 | GF_as$misleadingSNP_filtering
 
 print("3.2.5) Remove genes from AS and not-AS DGE lists")
-files_DGE <- list.files(path = datapath, full.names = TRUE)[grepl(x = list.files(path = datapath, full.names = TRUE), pattern = "data/CF_") & !grepl(x = list.files(path = datapath, full.names = TRUE), pattern = "pliced")]
+files <- paste0(datapath, list.files(path = datapath))
+files_DGE <- files[grepl(x = files, pattern = "data/CF_") & !grepl(x = files, pattern = "pliced")]
 notas_DGE <- files_DGE[!(grepl(x = files_DGE, pattern = "B6") | grepl(x = files_DGE, pattern = "Cast"))]
 as_DGE <- files_DGE[grepl(x = files_DGE, pattern = "B6") | grepl(x = files_DGE, pattern = "Cast")]
 for(f in files_DGE){
@@ -136,13 +137,15 @@ sf <- data.frame(day = dge$samples$day, ID = dge$samples$id, sf = sizefact)
 save(sf, file = paste0(datapath, "PoolClust_sizefactors_autosomal.RData"))
 
 print("4.2) Store size factors in DGE lists")
-files_DGE <- list.files(path = datapath, full.names = TRUE)[grepl(x = list.files(path = datapath, full.names = TRUE), pattern = "data/GFCF_")]
+files <- paste0(datapath, list.files(path = datapath))
+files_DGE <- files[grepl(x = files, pattern = "data/GFCF_")]
 for(f in files_DGE){
   load(f); dge$samples$sf_notX <- sizefact; dge$samples$eff_libsize_notX <- colSums(dge$counts)*dge$samples$sf_notX; save(dge, file = gsub(x = f, pattern = "data/GFCF_", replacement = "data/NGFCF_"))
 }
 
 print("4.3) Store size factors in Spliced/Unspliced DGE lists")
-files_DGE <- list.files(path = datapath, full.names = TRUE)[grepl(x = list.files(path = datapath, full.names = TRUE), pattern = "data/CF_") & grepl(x = list.files(path = datapath, full.names = TRUE), pattern = "pliced")]
+files <- paste0(datapath, list.files(path = datapath))
+files_DGE <- files[grepl(x = files, pattern = "data/CF_") & grepl(x = files, pattern = "pliced")]
 for(f in files_DGE){
   load(f); dge$samples$sf_notX <- sizefact; dge$samples$eff_libsize_notX <- colSums(dge$counts)*dge$samples$sf_notX; save(dge, file = gsub(x = f, pattern = "CF_", replacement = "NCF_"))
 }
@@ -180,7 +183,8 @@ df$Xist_ratio_class[df$xist_umi == 0] <- "Undetected"
 table(day = df$day, df$Xist_ratio_class)
 
 print("5.4) Store cell classifications on DGE lists")
-files_DGE <- list.files(path = datapath, full.names = TRUE)[grepl(x = list.files(path = datapath, full.names = TRUE), pattern = "data/NGFCF_")]
+files <- paste0(datapath, list.files(path = datapath))
+files_DGE <- files[grepl(x = files, pattern = "data/NGFCF_")]
 for(f in files_DGE){
   load(f); dge$samples <- data.frame(dge$samples, df[, -c(1,2)]); save(dge, file = gsub(x = f, pattern = "data/NGFCF_", replacement = "data/"))
 }
