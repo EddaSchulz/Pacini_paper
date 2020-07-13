@@ -38,6 +38,8 @@ scriptpath <- paste0(path, "scripts/")
 @
 
 \section{Define plot settings and function}
+
+\subsection{Plot settings}
 <<>>=
 pt_conversion <- 1/2.141959
 pt_textconversion <- 0.35015
