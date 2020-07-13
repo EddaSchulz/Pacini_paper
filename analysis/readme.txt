@@ -22,6 +22,7 @@ The following R libraries are required (in brackets the library version used for
 - pcaMethods (v.1.76.0)
 - pheatmap (v.1.0.12)
 - plyr (v.1.8.6)
+- readxl (v.1.3.1)
 - reshape2 (v.1.4.4)
 - scran (v.1.12.1)
 - tidyr (v.1.1.0)
