@@ -27,4 +27,5 @@ The following R libraries are required (in brackets the library version used for
 - scran (v.1.12.1)
 - tidyr (v.1.1.0)
 - umap (v.0.2.6.0)
+- UpSetR (v.1.4.0)
 - velocyto.R (v.0.6)
