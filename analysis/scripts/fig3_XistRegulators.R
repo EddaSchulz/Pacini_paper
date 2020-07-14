@@ -306,7 +306,6 @@ print("5) D: Correlation analysis")
 
 print("5.1) Load data and launch gene-wise correlation analysis to Xist CPM expression")
 load(paste0(datapath, "DGE.RData"))
-corrpath <- paste0(outpath, "Correlations/"); dir.create(corrpath, showWarnings = FALSE, recursive = TRUE)
 dge$cpm <- t(t(dge$counts)/(colSums(dge$counts)*dge$samples$sf_notX))*1e6
 x <- data.frame(day = rep(dge$samples$day, each = nrow(dge)), 
                 Xist = rep(dge$cpm["Xist",], each = nrow(dge)),
@@ -330,7 +329,7 @@ sprmcor <- x %>%
   dplyr::arrange(Gene, day) %>%
   collect()
 sprmcor$fdr_Xist <- p.adjust(sprmcor$pvalue_Xist, method = "BH")
-save(sprmcor, file = paste0(corrpath, "sprmcor.RData"))
+save(sprmcor, file = paste0(outpath, "sprmcor.RData"))
 
 print("5.2) Select genes significantly correlated to Xist expression for each time point")
 temp <- sprmcor[!is.na(sprmcor$fdr_Xist),] %>% as.data.frame()
@@ -369,16 +368,22 @@ adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(ou
 
 print("6) E/F: Heatmap - positive/negative regulators over time at day 1/2")
 
-print("6.1) Load data")
-# select genes showing significant correlation to Xist expression at day 1/2
+print("6.1) Load data and remove Xist")
 sub <- sprmcor[(sprmcor$day %in% c(1, 2)),]
 sub <- sub[!sub$Gene %in% "Xist",]
+
+print("6.2) Remove pseudogenes and select significant genes at day 1/2")
+# remove pseudogenes
+sub$gene_biotype <- bm$gene_biotype[match(sub$Gene, bm$mgi_symbol)]
+sub <- sub[!sub$gene_biotype %in% "pseudogene",]
+
+# select genes showing significant correlation to Xist expression at day 1/2
 sub_sig <- sub[(sub$fdr_Xist<0.05)&(!is.na(sub$fdr_Xist)),]
 summary(abs(sub_sig$spr_Xist[sub_sig$day == 1]))
 summary(abs(sub_sig$spr_Xist[sub_sig$day == 2]))
 summary(abs(sub_sig$spr_Xist))
 
-# select only genes with absolute correlation greater than 0.25
+print("6.3) Select genes with absolute correlation greater than 0.25")
 sub_sig_high <- sub_sig[abs(sub_sig$spr_Xist)>0.25,]
 table(sub_sig_high$spr_Xist>0)
 positive <- sub_sig_high[sub_sig_high$spr_Xist>0,] %>% dplyr::arrange(-abs(spr_Xist))
@@ -386,7 +391,7 @@ pos_genes <- unique(as.character(positive$Gene))
 negative <- sub_sig_high[(sub_sig_high$spr_Xist<0)&(!sub_sig_high$Chr %in% "X"),] %>% dplyr::arrange(-abs(spr_Xist)) # exclude X-linked genes for negative Xist regulators
 neg_genes <- unique(as.character(negative$Gene))
 
-print("6.2) E: Plot results through heatmap - positive Xist regulators")
+print("6.4) E: Plot results through heatmap - positive Xist regulators")
 ph <- length(pos_genes)*0.3
 temp <- sprmcor[sprmcor$Gene %in% pos_genes,]; temp$Gene <- factor(temp$Gene, levels = rev(pos_genes))
 temp$significant <- temp$fdr_Xist<0.05
@@ -402,7 +407,7 @@ g <- temp[temp$day != 0,] %>%
   labs(x = "Time [days]", y = "", fill = "Spearman's correlation to Xist CPM", size = "Absolute correlation")
 adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, savefile = paste0(outpath, "E_corrXist_PositiveRegulators.pdf"))
 
-print("6.3) F: Plot results through heatmap - negative autosomal Xist regulators")
+print("6.5) F: Plot results through heatmap - negative autosomal Xist regulators")
 ph <- length(neg_genes)*0.3
 temp <- sprmcor[sprmcor$Gene %in% neg_genes,]; temp$Gene <- factor(temp$Gene, levels = rev(neg_genes))
 temp$significant <- temp$fdr_Xist<0.05
