@@ -10,8 +10,8 @@ In order to perform these analyses, the following have to be installed and store
 
 R scripts can be run using R (v.3.6.1) software (available at "https://cran.r-project.org/"). The following R libraries are required:
 - data.table (v.1.12.8)
-- plyr (v.1.8.6)
 - edgeR (v.3.26.8)
+- plyr (v.1.8.6)
 
 The alignemnt and gene counting analyses can be reproduced following the instruction described by the Sweave R scripts, stored in the "alignment/launch/" directory:
 (i)   "1_MaskMouseGenome.Rnw": generation of the B6/Cast N-masked FASTA files and GTF annotations
