@@ -13,7 +13,7 @@ R scripts can be run using R (v.3.6.1) software (available at "https://cran.r-pr
 - plyr (v.1.8.6)
 - edgeR (v.3.26.8)
 
-The alignemnt and gene counting analyses can be reproduced following the instruction described by the .Rnw files, stored in the "alignment/launch/" directory:
+The alignemnt and gene counting analyses can be reproduced following the instruction described by the Sweave R scripts, stored in the "alignment/launch/" directory:
 (i)   "1_MaskMouseGenome.Rnw": generation of the B6/Cast N-masked FASTA files and GTF annotations
 (ii)  "2_HighOutput_AlignCount.Rnw": alignment of the FASTQ files (time points: d0-d4) generated in High Output mode, and single-cell gene expression quantification 
 (iii) "3_RapidRun_AlignCount.Rnw": alignment of the FASTQ files (time points: d1) generated in Rapid Run mode, and single-cell gene expression quantification 
