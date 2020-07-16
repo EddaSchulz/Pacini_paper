@@ -1,0 +1,544 @@
+\documentclass[a4paper]{article}
+\usepackage[cm]{fullpage}
+\usepackage{pdflscape, amsmath, amssymb, pgffor}
+\usepackage{caption, graphics, subcaption}
+\usepackage{listings}
+\usepackage{courier}
+\usepackage{color}
+\usepackage{hyperref}
+\hypersetup{pdftex, colorlinks=true, linktoc=all, linkcolor=black}
+
+\lstset{
+basicstyle=\footnotesize\ttfamily,
+breaklines=true
+}
+
+
+\usepackage{Sweave}
+\begin{document}
+
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{fontsize=\scriptsize}
+\DefineVerbatimEnvironment{Sinput}{Verbatim}{fontsize=\footnotesize}
+\SweaveOpts{concordance=TRUE, keep.source=FALSE, prefix.string=figures/fig}
+
+
+
+\title{Define count matrices}
+
+
+
+\section{Description}
+
+\noindent The following code combines the count matrices relative to FASTQ files generated in High Output and Rapid Run mode, and defines a single count matrix across all sequenced cells and differentiation time points. The \texttt{Exon-overlapping gene expression} section defines count matrices (with allele specific and not allele specific resolution, respectively AS and notAS) relative to the mouse and spike-in gene annotation (\texttt{mm10ERCC.gtf}). The \texttt{Spliced/Unspliced gene expression} section defines the unspliced count matrices (notAS and AS) based on the reads aligned to intronic regions (\texttt{intron.gtf}), and the spliced count matrices (notAS and AS) subtracting the count matrices relative to the exonic&intronic and intronic gene annotations (\texttt{wholegene.gtf} and \texttt{intron.gtf}, respectively). The resulting count matrices, including the counts for all cells and time points, are stored in the \texttt{alignment/Count_Matrices/} directory.
+
+
+
+\section{Exon-overlapping gene expression}
+
+\subsection{Not Allele Specific (notAS) gene expression}
+
+\subsubsection{Load UMI count path and define sample names}
+<<>>=
+path <- "C:/Users/pacini/Pacini_paper-master/alignment/"
+sample_name <- paste0(rep(paste0("Col_", paste0(rep(c("0", ""), times = c(9, 1)), 1:10)), each = 40), 
+                      rep(paste0("_Row_", 1:40), times = 10))
+Time <- c("010", "011", "012", "013", "014")
+TimePoints <- c("d0", "d1", "d2", "d3", "d4")
+@
+
+\subsubsection{Identify detected genes across cells and time points}
+<<>>=
+dir <- c("HighOutput", "RapidRun"); allgenes <- c()
+for(i in 1:length(Time)){
+  time <- Time[i]
+  
+  for(d in dir){
+    
+    if( (time == "011") | (d == "HighOutput")){
+      
+      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
+      file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
+      
+      for(j in 1:length(file)){
+        temp <- read.delim(file[j], row.names = 1)
+        allgenes <- unique(c(allgenes, rownames(temp)))
+      }
+    }
+  }
+}
+@
+
+\subsubsection{Define one count matrix per time point}
+<<>>=
+for(i in 1:length(Time)){
+  time <- Time[i]
+  
+  for(d in dir){
+    
+    if( (time == "011") | (d == "HighOutput")){
+      
+      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
+      file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
+      
+      count_matrix <- c()
+      
+      for(j in 1:length(file)){
+
+        # load count matrix
+        data <- read.delim(file[j], row.names = 1)
+        obs_genes <- rownames(data)
+        data <- matrix(data[,colSums(data)>0], nrow = length(obs_genes))
+        rownames(data) <- obs_genes
+        
+        # expand matrix with missing genes
+        missing_genes <- allgenes[!allgenes %in% rownames(data)]
+        data_expand <- rbind(as.matrix(data), matrix(0, nrow = length(missing_genes), ncol = ncol(data)))
+        rownames(data_expand) <- c(rownames(data), missing_genes)
+        
+        #print(paste0("2.3) Reorder and create big matrix"))
+        m_genes <- match(allgenes, rownames(data_expand))
+        data_ordered <- data_expand[m_genes, ]
+        count_matrix <- cbind(count_matrix, data_ordered)
+        
+      }
+      colnames(count_matrix) <- paste0(TimePoints[i], "_", sample_name)
+      
+      # save count matrix
+      outpath <- paste0(path, "Sequencing_Output/", d, "/Count_Matrices/")
+      dir.create(path = outpath, showWarnings = F, recursive = T)
+      outfile <- paste0(outpath, "UMI_counts_matrix_", TimePoints[i], ".RData")
+      save(count_matrix, file = outfile)
+    }
+  }
+}
+@
+
+\subsubsection{Combine counts of HighOutput and RapidRun for d1}
+<<>>=
+# rename High Output d1 count matrix
+r1 <- paste0(path, "Sequencing_Output/RapidRun/Count_Matrices/UMI_counts_matrix_d1.RData")
+h1 <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_d1.RData")
+h1_new <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_d1_noRapidRun.RData")
+file.rename(from = h1, to = h1_new)
+
+# combine High Output and Rapid Run matrices
+load(r1); rr <- count_matrix
+load(h1_new); ho <- count_matrix
+count_matrix <- ho + rr
+save(count_matrix, file = h1)
+@
+
+\subsubsection{Store counts for all cells and time points in a single count matrix}
+<<>>=
+outpath <- paste0(path, "Count_Matrices/notAS/")
+dir.create(path = outpath, showWarnings = F, recursive = T)
+
+counts <- c()
+for(i in 1:length(TimePoints)){
+  load(file = paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], ".RData"))
+  counts <- cbind(counts, count_matrix)
+}
+save(counts, file = paste0(outpath, "UMICountMatrix.RData"))
+write.table(x = counts, file = paste0(outpath, "UMICountMatrix.txt"), row.names = T, col.names = T)
+@
+
+\subsection{Allele Specific (AS) gene expression}
+
+\subsubsection{Identify detected genes across cells and time points}
+<<>>=
+dir <- c("HighOutput", "RapidRun"); allgenes <- c()
+for(i in 1:length(Time)){
+  time <- Time[i]
+  
+  for(d in dir){
+    
+    if( (time == "011") | (d == "HighOutput")){
+      
+      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
+      file_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_genome1_unique_restrUMI_dge.txt")
+      file_cast <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_genome2_unique_restrUMI_dge.txt")
+      file <- c(file_b6, file_cast)
+      
+      for(j in 1:length(file)){
+        temp <- read.delim(file[j], row.names = 1)
+        allgenes <- unique(c(allgenes, rownames(temp)))
+      }
+    }
+  }
+}
+@
+
+\subsubsection{Define one count matrix per time point}
+<<>>=
+for(i in 1:length(Time)){
+  time <- Time[i]
+  
+  for(d in dir){
+    
+    if( (time == "011") | (d == "HighOutput")){
+      
+      for(g in c("genome1", "genome2")){
+        
+        id <- ifelse(g == "genome1", "B6", "Cast")
+        print(paste0("Processing time ", TimePoints[i], ", allele ", id, ", and directory ", d, "..."))
+        file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_", g, "_unique_restrUMI_dge.txt")
+        
+        count_matrix <- c()
+      
+        for(j in 1:length(file)){
+  
+          # load count matrix
+          data <- read.delim(file[j], row.names = 1)
+          obs_genes <- rownames(data)
+          data <- matrix(data[,colSums(data)>0], nrow = length(obs_genes))
+          rownames(data) <- obs_genes
+          
+          # expand matrix with missing genes
+          missing_genes <- allgenes[!allgenes %in% rownames(data)]
+          data_expand <- rbind(as.matrix(data), matrix(0, nrow = length(missing_genes), ncol = ncol(data)))
+          rownames(data_expand) <- c(rownames(data), missing_genes)
+          
+          #print(paste0("2.3) Reorder and create big matrix"))
+          m_genes <- match(allgenes, rownames(data_expand))
+          data_ordered <- data_expand[m_genes, ]
+          count_matrix <- cbind(count_matrix, data_ordered)
+          
+        }
+        colnames(count_matrix) <- paste0(TimePoints[i], "_", sample_name)
+        
+        # save count matrix
+        outpath <- paste0(path, "Sequencing_Output/", d, "/Count_Matrices/")
+        outfile <- paste0(outpath, "UMI_counts_matrix_", TimePoints[i], "_", id, ".RData")
+        save(count_matrix, file = outfile)
+        
+      }
+    }
+  }
+}
+@
+
+\subsubsection{Combine counts of HighOutput and RapidRun for d1}
+<<>>=
+for(g in c("B6", "Cast")){
+  # rename High Output d1 count matrix
+  r1 <- paste0(path, "Sequencing_Output/RapidRun/Count_Matrices/UMI_counts_matrix_d1_", g, ".RData")
+  h1 <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_d1_", g, ".RData")
+  h1_new <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_d1_", g, "_noRapidRun.RData")
+  file.rename(from = h1, to = h1_new)
+  
+  # combine High Output and Rapid Run matrices
+  load(r1); rr <- count_matrix
+  load(h1_new); ho <- count_matrix
+  count_matrix <- ho + rr
+  save(count_matrix, file = h1)
+}
+@
+
+\subsubsection{Store counts for all cells and time points in a single count matrix}
+<<>>=
+outpath <- paste0(path, "Count_Matrices/AS/")
+dir.create(path = outpath, showWarnings = F, recursive = T)
+
+for(g in c("B6", "Cast")){
+  counts <- c()
+  for(i in 1:length(TimePoints)){
+    load(file = paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_", g, ".RData"))
+    counts <- cbind(counts, count_matrix)
+  }
+  save(counts, file = paste0(outpath, g, "_UMICountMatrix.RData"))
+  write.table(x = counts, file = paste0(outpath, g, "_UMICountMatrix.txt"), row.names = T, col.names = T)
+}
+@
+
+
+
+\section{Spliced/Unspliced gene expression}
+
+\subsection{Not Allele Specific (notAS) gene expression}
+
+\subsubsection{Identify detected genes across cells and time points}
+<<>>=
+dir <- c("HighOutput", "RapidRun"); allgenes <- c()
+for(i in 1:length(Time)){
+  time <- Time[i]
+  
+  for(d in dir){
+    
+    if( (time == "011") | (d == "HighOutput")){
+      
+      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
+      file_wholegene <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
+      file_intron <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
+      file <- c(file_wholegene, file_intron)
+      
+      for(j in 1:length(file)){
+        temp <- read.delim(file[j], row.names = 1)
+        allgenes <- unique(c(allgenes, rownames(temp)))
+      }
+    }
+  }
+}
+@
+
+\subsubsection{Define one count matrix per time point}
+<<>>=
+for(i in 1:length(Time)){
+  time <- Time[i]
+  
+  for(d in dir){
+    
+    if( (time == "011") | (d == "HighOutput")){
+      
+      for(w in c("Counts_wholegene", "Counts_intron")){
+        
+        id <- gsub(x = w, pattern = "Counts_", replacement = "")
+        print(paste0("Processing time ", TimePoints[i], ", annotation: ", id, ", and directory ", d, "..."))
+        file <- paste0(path, "Sequencing_Output/", d, "/", w, "/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
+        
+        count_matrix <- c()
+      
+        for(j in 1:length(file)){
+  
+          # load count matrix
+          data <- read.delim(file[j], row.names = 1)
+          obs_genes <- rownames(data)
+          data <- matrix(data[,colSums(data)>0], nrow = length(obs_genes))
+          rownames(data) <- obs_genes
+          
+          # expand matrix with missing genes
+          missing_genes <- allgenes[!allgenes %in% rownames(data)]
+          data_expand <- rbind(as.matrix(data), matrix(0, nrow = length(missing_genes), ncol = ncol(data)))
+          rownames(data_expand) <- c(rownames(data), missing_genes)
+          
+          #print(paste0("2.3) Reorder and create big matrix"))
+          m_genes <- match(allgenes, rownames(data_expand))
+          data_ordered <- data_expand[m_genes, ]
+          count_matrix <- cbind(count_matrix, data_ordered)
+          
+        }
+        colnames(count_matrix) <- paste0(TimePoints[i], "_", sample_name)
+        
+        # save count matrix
+        outpath <- paste0(path, "Sequencing_Output/", d, "/Count_Matrices/")
+        outfile <- paste0(outpath, "UMI_counts_matrix_", TimePoints[i], "_", id, ".RData")
+        save(count_matrix, file = outfile)
+        
+      }
+    }
+  }
+}
+@
+
+\subsubsection{Combine counts of HighOutput and RapidRun for d1}
+<<>>=
+for(w in c("wholegene", "intron")){
+  # rename High Output d1 count matrix
+  r1 <- paste0(path, "Sequencing_Output/RapidRun/Count_Matrices/UMI_counts_matrix_d1_", w, ".RData")
+  h1 <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_d1_", w, ".RData")
+  h1_new <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_d1_", w, "_noRapidRun.RData")
+  file.rename(from = h1, to = h1_new)
+  
+  # combine High Output and Rapid Run matrices
+  load(r1); rr <- count_matrix
+  load(h1_new); ho <- count_matrix
+  count_matrix <- ho + rr
+  save(count_matrix, file = h1)
+}
+@
+
+\subsubsection{Define spliced counts}
+
+\noindent For each time point, gene and cell: the spliced UMI counts are defined as the difference between the UMI counts derived by reads overlapping to the whole gene body, and the UMI counts derived by reads overlapping to the intronic region (i.e. unspliced). Negative spliced UMI counts can result from overlapping annotations. Therefore, genes with at least one negative count are stored in \texttt{remove_overlapping_annot} and then removed from the global count matrix.
+
+<<>>=
+remove_overlapping_annot <- c()
+for(i in 1:length(TimePoints)){
+  
+  wg_file <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_wholegene.RData")
+  in_file <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_intron.RData")
+  
+  load(wg_file); wg_counts <- count_matrix
+  load(in_file); in_counts <- count_matrix
+  count_matrix <- wg_counts - in_counts
+  save(count_matrix, 
+       file = paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_exonic.RData"))
+  
+  # identify genes with negative counts resulting from overlapping gene annotations
+  remove_overlapping_annot <- unique(c(remove_overlapping_annot,
+                                       rownames(count_matrix)[rowSums(count_matrix<0)>0]))
+}
+@
+
+\subsubsection{Store counts for all cells and time points in a single count matrix}
+<<>>=
+outpath <- paste0(path, "Count_Matrices/notAS/")
+dir.create(path = outpath, showWarnings = F, recursive = T)
+
+for(w in c("exonic", "intron")){
+  
+  id <- ifelse(w == "exonic", "Spliced", "Unspliced")
+  counts <- c()
+  for(i in 1:length(TimePoints)){
+    load(file = paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_", w, ".RData"))
+    counts <- cbind(counts, count_matrix[!rownames(count_matrix) %in% remove_overlapping_annot,])
+  }
+  save(counts, file = paste0(outpath, id, "_UMICountMatrix.RData"))
+  write.table(x = counts, file = paste0(outpath, id, "_UMICountMatrix.txt"), row.names = T, col.names = T)
+}
+@
+
+\subsection{Allele Specific (AS) gene expression}
+
+\subsubsection{Identify detected genes across cells and time points}
+<<>>=
+dir <- c("HighOutput", "RapidRun"); allgenes <- c()
+for(i in 1:length(Time)){
+  time <- Time[i]
+  
+  for(d in dir){
+    
+    if( (time == "011") | (d == "HighOutput")){
+      
+      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
+      file_wholegene_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", 
+                                  sample_name, "_genome1_unique_restrUMI_dge.txt")
+      file_wholegene_cast <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", 
+                                    sample_name, "_genome2_unique_restrUMI_dge.txt")
+      file_intron_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", 
+                               sample_name, "_genome1_unique_restrUMI_dge.txt")
+      file_intron_cast <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", 
+                                 sample_name, "_genome2_unique_restrUMI_dge.txt")
+      file <- c(file_wholegene_b6, file_wholegene_cast, file_intron_b6, file_intron_cast)
+      
+      for(j in 1:length(file)){
+        temp <- read.delim(file[j], row.names = 1)
+        allgenes <- unique(c(allgenes, rownames(temp)))
+      }
+    }
+  }
+}
+@
+
+\subsubsection{Define one count matrix per time point}
+<<>>=
+for(i in 1:length(Time)){
+  time <- Time[i]
+  
+  for(d in dir){
+    
+    if( (time == "011") | (d == "HighOutput")){
+      
+      for(w in c("Counts_wholegene", "Counts_intron")){
+        
+        for(g in c("genome1", "genome2")){
+          
+          id_g <- ifelse(g == "genome1", "B6", "Cast")
+          id_w <- gsub(x = w, pattern = "Counts_", replacement = "")
+          print(paste0("Processing time ", TimePoints[i], ", annotation: ", id_w, ", allele ", id_g, ", and directory ", d, "..."))
+          file <- paste0(path, "Sequencing_Output/", d, "/", w, "/DGE/", time, "/", sample_name, "_", g, "_unique_restrUMI_dge.txt")
+          
+          count_matrix <- c()
+        
+          for(j in 1:length(file)){
+    
+            # load count matrix
+            data <- read.delim(file[j], row.names = 1)
+            obs_genes <- rownames(data)
+            data <- matrix(data[,colSums(data)>0], nrow = length(obs_genes))
+            rownames(data) <- obs_genes
+            
+            # expand matrix with missing genes
+            missing_genes <- allgenes[!allgenes %in% rownames(data)]
+            data_expand <- rbind(as.matrix(data), matrix(0, nrow = length(missing_genes), ncol = ncol(data)))
+            rownames(data_expand) <- c(rownames(data), missing_genes)
+            
+            #print(paste0("2.3) Reorder and create big matrix"))
+            m_genes <- match(allgenes, rownames(data_expand))
+            data_ordered <- data_expand[m_genes, ]
+            count_matrix <- cbind(count_matrix, data_ordered)
+            
+          }
+          colnames(count_matrix) <- paste0(TimePoints[i], "_", sample_name)
+          
+          # save count matrix
+          outpath <- paste0(path, "Sequencing_Output/", d, "/Count_Matrices/")
+          outfile <- paste0(outpath, "UMI_counts_matrix_", TimePoints[i], "_", id_w, "_", id_g, ".RData")
+          save(count_matrix, file = outfile)
+        }
+      }
+    }
+  }
+}
+@
+
+\subsubsection{Combine counts of HighOutput and RapidRun for d1}
+<<>>=
+for(w in c("wholegene", "intron")){
+  
+  for(g in c("B6", "Cast")){
+    
+    # rename High Output d1 count matrix
+    r1 <- paste0(path, "Sequencing_Output/RapidRun/Count_Matrices/UMI_counts_matrix_d1_", w, "_", g, ".RData")
+    h1 <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_d1_", w, "_", g, ".RData")
+    h1_new <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_d1_", w, "_", g, "_noRapidRun.RData")
+    file.rename(from = h1, to = h1_new)
+    
+    # combine High Output and Rapid Run matrices
+    load(r1); rr <- count_matrix
+    load(h1_new); ho <- count_matrix
+    count_matrix <- ho + rr
+    save(count_matrix, file = h1)
+  }
+}
+@
+
+\subsubsection{Define spliced counts}
+
+\noindent For each time point, gene and cell: the spliced UMI counts are defined as the difference between the UMI counts derived by reads overlapping to the whole gene body, and the UMI counts derived by reads overlapping to the intronic region (i.e. unspliced). Negative spliced UMI counts can result from overlapping annotations. Therefore, genes with at least one negative count are stored in \texttt{remove_overlapping_annot} and then removed from the global count matrix.
+
+<<>>=
+remove_overlapping_annot <- c()
+for(i in 1:length(TimePoints)){
+  
+  for(g in c("B6", "Cast")){
+    
+    wg_file <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_wholegene_", g, ".RData")
+    in_file <- paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_intron_", g, ".RData")
+    
+    load(wg_file); wg_counts <- count_matrix
+    load(in_file); in_counts <- count_matrix
+    count_matrix <- wg_counts - in_counts
+    save(count_matrix, 
+         file = paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_exonic_", g, ".RData"))
+    
+    # identify genes with negative counts resulting from overlapping gene annotations
+    remove_overlapping_annot <- unique(c(remove_overlapping_annot,
+                                         rownames(count_matrix)[rowSums(count_matrix<0)>0]))
+  }
+}
+@
+
+\subsubsection{Store counts for all cells and time points in a single count matrix}
+<<>>=
+outpath <- paste0(path, "Count_Matrices/AS/")
+dir.create(path = outpath, showWarnings = F, recursive = T)
+
+for(w in c("exonic", "intron")){
+  
+  id <- ifelse(w == "exonic", "Spliced", "Unspliced")
+  
+  for(g in c("B6", "Cast")){
+    
+    counts <- c()
+    for(i in 1:length(TimePoints)){
+      
+      load(file = paste0(path, "Sequencing_Output/HighOutput/Count_Matrices/UMI_counts_matrix_", TimePoints[i], "_", w, "_", g, ".RData"))
+      counts <- cbind(counts, count_matrix[!rownames(count_matrix) %in% remove_overlapping_annot,])
+    }
+    save(counts, file = paste0(outpath, g, "_", id, "_UMICountMatrix.RData"))
+    write.table(x = counts, file = paste0(outpath, g, "_", id, "_UMICountMatrix.txt"), row.names = T, col.names = T)
+  }
+}
+@
+
+\end{document}

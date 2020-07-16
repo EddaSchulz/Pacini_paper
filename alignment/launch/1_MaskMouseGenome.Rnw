@@ -1,0 +1,309 @@
+\documentclass[a4paper]{article}
+\usepackage[cm]{fullpage}
+\usepackage{pdflscape, amsmath, amssymb, pgffor}
+\usepackage{caption, graphics, subcaption}
+\usepackage{listings}
+\usepackage{courier}
+\usepackage{color}
+\usepackage{hyperref}
+\hypersetup{pdftex, colorlinks=true, linktoc=all, linkcolor=black}
+
+\lstset{
+basicstyle=\footnotesize\ttfamily,
+breaklines=true
+}
+
+
+\usepackage{Sweave}
+\begin{document}
+
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{fontsize=\scriptsize}
+\DefineVerbatimEnvironment{Sinput}{Verbatim}{fontsize=\footnotesize}
+\SweaveOpts{concordance=TRUE, keep.source=FALSE, prefix.string=figures/fig}
+
+
+
+\title{Mouse genome masking and GTF file generation}
+
+
+
+\section{Description}
+
+\noindent The following code generates the B6/Cast masked FASTA files and GTF annotation that will be used for single cell FASTQ file alignment.
+
+
+
+\section{Define fasta, gtf and dictionary files}
+
+\subsection{FASTA and GTF: Combine r90 GRCm38 mm10 with ERCC92 sequences}
+
+\noindent Download the FASTA file (\texttt{Mus_musculus.GRCm38.dna_sm.primary_assembly.fa.gz}) and GTF annotation file (\texttt{Mus_musculus.GRCm38.90.gtf.gz}) from \texttt{http://www.ensembl.org/Mus_musculus/Info/Index} and store them in the \texttt{"alignment/mm10/"} directory. \\ \\ The following code combines the mouse and ERCC-92 FASTA and GTF files.
+
+\begin{lstlisting}[language=bash]
+mm10path='C:/Users/pacini/Pacini_paper-master/alignment/mm10/'
+gunzip -dk $mm10path'Mus_musculus.GRCm38.dna_sm.primary_assembly.fa.gz'
+gunzip -dk $mm10path'Mus_musculus.GRCm38.90.gtf.gz'
+cat $mm10path'Mus_musculus.GRCm38.dna_sm.primary_assembly.fa' $mm10path'ERCC92.fa' > $mm10path'mm10ERCC.fasta'
+cat $mm10path'Mus_musculus.GRCm38.90.gtf' $mm10path'ERCC92.gtf' > $mm10path'mm10ERCC.gtf'
+\end{lstlisting}
+
+
+
+\subsection{Define dictionary and refFlat files using Picard and DropSeq tools respectively}
+
+\noindent Store Picard JAVA scripts (v.2.7.1) in the \texttt{"alignment/scripts/"} directory, and download Drop-seq java scripts (v.1.12) from \textit{https://github.com/broadinstitute/Drop-seq/} in the same folder. \\ \\ Use picard-CreateSequenceDictionary function to define the dictionary, and the Drop-Seq ConvertToRefFlat function to create a refFlat file.
+
+\begin{lstlisting}[language=bash]
+scriptpath='C:/Users/pacini/Pacini_paper-master/alignment/scripts/'
+
+java -jar $scriptpath'picard-2.7.1/picard.jar' CreateSequenceDictionary \
+  REFERENCE=$mm10path'mm10ERCC.fasta' \
+  OUTPUT=$mm10path'mm10ERCC.dict'
+  
+java -jar $scriptpath'Drop-seq_tools-1.12/jar/dropseq.jar' ConvertToRefFlat \
+  ANNOTATIONS_FILE=$mm10path'mm10ERCC.gtf' \
+  SEQUENCE_DICTIONARY=$mm10path'mm10ERCC.dict' \
+  OUTPUT=$mm10path'mm10ERCC.refFlat'
+\end{lstlisting}
+
+
+
+\section{Generate N-masked FASTA sequence}
+
+\noindent Download the SNPs between the Cast and BL6 mm10 cell lines from \texttt{ftp://ftp-mouse.sanger.ac.uk/REL-1505-SNPs_Indels/mgp.v5.merged.snps_all.dbSNP142.vcf.gz}, and store the file in the \texttt{"alignment/mm10/"} folder. \\ \\ Download SNPsplit PERL script from \texttt{https://www.bioinformatics.babraham.ac.uk/projects/SNPsplit/}, and store it in the \texttt{"alignment/scripts/"} directory.
+
+\subsection{N-mask FASTA sequence using SNPsplit}
+
+\noindent Create a masked mm10 genome, where the annotated SNPs between the two mouse lines are masked. Every N-masked chromosome will be stored in the \texttt{$mm10path'Cast\_BL6\_Genomes/CAST\_EiJ\_N-masked/} folder.
+
+\begin{lstlisting}[language=bash]
+SNPsplit_genome_preparation --vcf_file $mm10path'mgp.v5.merged.snps_all.dbSNP142.vcf.gz' \
+                            --strain 'CAST_EiJ' \
+                            --reference_genome $mm10path \
+                            --skip_filtering \
+                            --nmasking
+\end{lstlisting}[language=bash]
+
+\subsection{Concatenate the N-masked chromosome FASTA files into a single fasta file}
+
+\begin{lstlisting}[language=bash]
+chr=( $(seq 1 19) "MT" "X" "Y" )
+masked_fasta=$mm10path'Cast_BL6_Genomes/N_masked_B6_CAST.fa'
+touch $masked_fasta
+
+for i in ${chr[@]}
+do
+cat $mm10path'Cast_BL6_Genomes/CAST_EiJ_N-masked/chr'$i'.N-masked.fa' >> $masked_fasta
+done
+\end{lstlisting}[language=bash]
+
+\subsection{Combine masked and ERCC FASTA files and define RefFlat file}
+
+\begin{lstlisting}[language=bash]
+% combine masked-mm10 and ERCC FASTA files
+cat $mm10path'N_masked_B6_CAST.fa' $mm10path'ERCC92.fa' > $mm10path'N_masked_B6_CAST_ERCC92.fa'
+
+% define sequence dictionary for fasta file
+java -jar $scriptpath'picard-2.7.1/picard.jar' CreateSequenceDictionary \
+  REFERENCE=$mm10path'N_masked_B6_CAST_ERCC92.fa' \
+  OUTPUT=$mm10path'N_masked_B6_CAST_ERCC92.dict'
+\end{lstlisting}[language=bash]
+
+
+
+\section{Define GTF file for whole gene and intronic regions}
+
+\subsection{Load GTF file into R}
+<<>>=
+library(data.table)
+mm10path <- "C:/Users/pacini/Pacini_paper-master/alignment/mm10/"
+gtf_file <- paste0(mm10path, "mm10ERCC.gtf")
+
+# read gtf file
+gtf <- fread(input = gtf_file); gtf <- data.frame(gtf)
+gtf_features <- gtf[, -ncol(gtf)]
+gtf_attributes <- strsplit2(gtf$V9, split = ";")
+gtf_attributes <- gsub(gsub(x = gtf_attributes, pattern = ".* \"", replacement = ""), pattern = "\"", replacement = "")
+gtf <- cbind(gtf_features, gtf_attributes)
+gtf <- data.frame(gtf)
+colnames(gtf) <- c("chromosome", "source", "feature", "start", "end", "score", "strand", "frame",
+                   "att_gene_id", "att_gene_version", "att_transcript_id", "att_transcript_version", "att_exon_number",
+                   "att_gene_name", "att_gene_source", "att_gene_biotype", "att_transcript_name", "att_transcript_source",
+                   "att_transcript_biotype", "att_tag", "att_ccds_id", "att_exon_id", "att_exon_version",
+                   "att_tag", "att_tag", "att_tag", "att_tag", "att_transcript_support_level")
+save(gtf, file = paste0(mm10path, "gtf_object.RData"))
+@
+
+\subsection{Define header for GTF files}
+
+<<>>=
+# define gtf header
+header <- c("#!genome-build GRCm38.p5", "#!genome-version GRCm38", "#!genome-date 2012-01", "#!genome-build-accession NCBI:GCA_000001635.7", "#!genebuild-last-updated 2017-06")
+write.table(x = header, file = paste0(mm10path, "header.txt"), quote = F, row.names = F, col.names = F, sep = "\n")
+@
+
+\begin{lstlisting}[language=bash]
+cd $mm10path
+cat header.txt > intron.gtf
+cat header.txt > wholegene.gtf
+echo '' > nointron.txt
+\end{lstlisting}
+
+\subsection{Generate GTF files for: whole-gene, intronic region, exonic region}
+
+\noindent To reduce computational time, the following R loop should be run with parallel instances. 
+<<>>=
+exons <- gtf[gtf$feature == "exon",]
+exons$id <- paste0(exons$start, "_", exons$end)
+exon_pergene <- ddply(exons[, c("att_gene_id", "id")], .variables = .(att_gene_id), summarize, 
+                      n = length(unique(id)))
+genes <- unique(gtf$att_gene_id)
+genes_exons <- as.character(exon_pergene$att_gene_id[exon_pergene$n>1])
+
+for(j in 1:length(genes_exons)){
+  print(paste0("Processing gene ", j, " over ", length(genes_exons), "..."))
+  g <- as.character(genes_exons[j])
+  
+  if(!grepl(g, pattern = "^ERCC")){
+    temp <- gtf[gtf$att_gene_id %in% g,]
+    
+    #features
+    chromosome <- unique(temp$chromosome); 
+    source <- unique(c(strsplit2(unique(temp$source), split = "_"))); source <- source[source!=""]
+    source <- paste0(source[order(source)], collapse = "_")
+    minstart <- min(temp$start); maxend <- max(temp$end); score <- unique(temp$score); strand <- unique(temp$strand); frame <- "."
+    
+    # attributes gene
+    gene_id <- unique(temp$att_gene_id)
+    gene_version <- unique(temp$att_gene_version)
+    gene_name <- unique(temp$att_transcript_id[temp$feature == "gene"])
+    gene_source <- source
+    gene_biotype <- unique(temp$att_exon_number[temp$feature == "gene"])
+    
+    # attributes transcript
+    transcript_id <- paste0(unique(temp$att_transcript_id[temp$feature == "transcript"]), collapse = "_")
+    transcript_version <- paste0(unique(temp$att_transcript_version[temp$feature == "transcript"]), collapse = "_")
+    transcript_name <- paste0(unique(temp$att_transcript_name[temp$feature == "exon"]), collapse = "_")
+    transcript_source <- source
+    transcript_biotype <- paste0(unique(temp$att_transcript_biotype[temp$feature == "transcript"]), collapse = "_")
+    tag <- paste0(unique(temp$att_tag[temp$feature == "transcript"]), collapse = "_")
+    transcript_support_level <- paste0(unique(temp$att_transcript_support_level[temp$feature == "transcript"]), collapse = "_")
+    
+    # attributes exon
+    exon_number <- NA
+    exon_id <- paste0(unique(temp$att_exon_id[temp$feature == "exon"]), collapse = "_")
+    exon_version <- paste0(unique(temp$att_exon_version[temp$feature == "exon"]), collapse = "_")
+  
+    # identify intronic regions
+    exons <- temp[temp$feature == "exon",]
+    exons <- exons[order(exons$start, decreasing = FALSE),]
+    ex <- exons[, c("start", "end")]
+    
+    if(nrow(ex)>1){
+      intron_present <- TRUE
+      intron <- ex[1,]
+      for(i in 2:nrow(ex)){
+        x <- ex$start[i]:ex$end[i]; y <- intron$start[nrow(intron)]:intron$end[nrow(intron)]
+        if(length(intersect(x,y))>0){
+          intron <- rbind(intron[-nrow(intron),], 
+                          data.frame(start = min(c(ex$start[i], intron$start[nrow(intron)])),
+                                     end = max(c(ex$end[i], intron$end[nrow(intron)]))))
+        }else{
+          intron <- rbind(intron, ex[i,])
+        }
+      }
+      
+      if(nrow(intron)>1){
+        intron$start_p1 <- intron$start[c(2:nrow(intron), NA)]; intron <- intron[-nrow(intron),]
+        intron$start_intron <- intron$end+1; intron$end_intron <- intron$start_p1-1
+        intron <- intron[intron$start_intron<intron$end_intron,]
+        if(nrow(intron)>0){
+          intron_start <- min(intron$end)+1; intron_end <- max(intron$start_p1-1)
+        }else{
+          intron_present <- FALSE
+        }
+      }else{
+        intron_present <- FALSE
+      }
+    }else{
+      intron_present <- FALSE
+    }
+      
+    
+    ##########################
+    ## generate gtf files
+    ##########################
+    
+    ####################
+    # 1) complete gene
+    
+    # gene-features
+    names <- c("gene_id", "gene_version", "gene_name", "gene_source", "gene_biotype")
+    variables <- c(as.character(gene_id), as.character(gene_version), as.character(gene_name), as.character(gene_source), as.character(gene_biotype))
+    id_gene <- data.frame(names, variables); id_gene <- id_gene[!id_gene$variables %in% "",]; id_gene$id <- paste0(id_gene$names, ' "', id_gene$variables, '"')
+    id_gene <- paste0(paste0(id_gene$id, collapse = "; "), ";")
+    
+    # transcript-features
+    names <- c("gene_id", "gene_version", "transcript_id", "transcript_version", "gene_name", "gene_source", "gene_biotype", "transcript_name", "transcript_source", "transcript_biotype", "tag", "transcript_support_level")
+    variables <- c(as.character(gene_id), as.character(gene_version), as.character(transcript_id), as.character(transcript_version), as.character(gene_name), as.character(gene_source), as.character(gene_biotype), as.character(transcript_name), as.character(transcript_source), as.character(transcript_biotype), as.character(tag), as.character(transcript_support_level))
+    id_trans <- data.frame(names, variables); id_trans <- id_trans[!id_trans$variables %in% "",]; id_trans$id <- paste0(id_trans$names, ' "', id_trans$variables, '"')
+    id_trans <- paste0(paste0(id_trans$id, collapse = "; "), ";")
+    
+    # exons-features
+    names <- c("gene_id", "gene_version", "transcript_id", "transcript_version", "exon_number", "gene_name", "gene_source", "gene_biotype", "transcript_name", "transcript_source", "transcript_biotype", "exon_id", "exon_version", "tag", "transcript_support_level")
+    exon_number <- 1
+    variables <- c(as.character(gene_id), as.character(gene_version), as.character(transcript_id), as.character(transcript_version), as.character(exon_number), as.character(gene_name), as.character(gene_source), as.character(gene_biotype), as.character(transcript_name), as.character(transcript_source), as.character(transcript_biotype), as.character(exon_id), as.character(exon_version), as.character(tag), as.character(transcript_support_level))
+    id_exon <- data.frame(names, variables); id_exon <- id_exon[!id_exon$variables %in% "",]; id_exon$id <- paste0(id_exon$names, ' "', id_exon$variables, '"')
+    id_exon <- paste0(paste0(id_exon$id, collapse = "; "), ";")
+    completegene <- cbind(chromosome, source, c("gene", "transcript", "exon"), minstart, maxend, score, strand, frame, 
+                          c(id_gene, id_trans, id_exon))
+    wholegene <- apply(completegene, 1, function(x) return(paste0(x, collapse = "\t")))
+    write(wholegene, file = paste0(mm10path, "wholegene.gtf"), append=TRUE, sep = "\n")
+    
+    if(intron_present == TRUE){
+      ####################
+      # 2) introns
+      
+      # exons-features
+      names <- c("gene_id", "gene_version", "transcript_id", "transcript_version", "exon_number", "gene_name", "gene_source", "gene_biotype", "transcript_name", "transcript_source", "transcript_biotype", "exon_id", "exon_version", "tag", "transcript_support_level")
+      exon_number <- seq_len(nrow(intron))
+      id <- c()
+      for(ex in exon_number){
+        variables <- c(as.character(gene_id), as.character(gene_version), as.character(transcript_id), as.character(transcript_version), as.character(ex), as.character(gene_name), as.character(gene_source), as.character(gene_biotype), as.character(transcript_name), as.character(transcript_source), as.character(transcript_biotype), as.character(exon_id), as.character(exon_version), as.character(tag), as.character(transcript_support_level))
+        id_exon <- data.frame(names, variables)
+        id_exon <- id_exon[!id_exon$variables %in% "",]
+        id_exon$id <- paste0(id_exon$names, ' "', id_exon$variables, '"')
+        id_exon <- paste0(paste0(id_exon$id, collapse = "; "), ";")
+        id <- c(id, id_exon)
+      }
+      introngene <- cbind(chromosome, source, c("gene", "transcript", rep("exon", length(id))), 
+                            c(intron_start, intron_start, intron$start_intron),
+                            c(intron_end, intron_end, intron$end_intron), 
+                            score, strand, frame, c(id_gene, id_trans, id))
+      intron <- apply(introngene, 1, function(x) return(paste0(x, collapse = "\t")))
+      write(intron, file = paste0(mm10path, "intron.gtf"), append=TRUE, sep = "\n")
+    }else{
+      print(paste0("Gene ", g, " has a single exon, hence no intron annotation can be generated!"))
+      write.table(exons, file = paste0(mm10path, "nointron.txt"), append=TRUE, sep = "\t", col.names = FALSE)
+    }
+  }else{
+    print(paste0("Skip ERCC: ", g))
+  }
+}
+@
+
+\subsection{Define refFlat files DropSeq tools}
+
+\begin{lstlisting}[language=bash]
+java -jar $scriptpath'Drop-seq_tools-1.12/jar/dropseq.jar' ConvertToRefFlat \
+  ANNOTATIONS_FILE=$mm10path'intron.gtf' \
+  SEQUENCE_DICTIONARY=$mm10path'mm10ERCC.dict' \
+  OUTPUT=$mm10path'intron.refFlat'
+  
+java -jar $scriptpath'Drop-seq_tools-1.12/jar/dropseq.jar' ConvertToRefFlat \
+  ANNOTATIONS_FILE=$mm10path'wholegene.gtf' \
+  SEQUENCE_DICTIONARY=$mm10path'mm10ERCC.dict' \
+  OUTPUT=$mm10path'wholegene.refFlat'
+\end{lstlisting}
+
+\end{document}

@@ -1,0 +1,273 @@
+\documentclass[a4paper]{article}
+\usepackage[cm]{fullpage}
+\usepackage{pdflscape, amsmath, amssymb, pgffor}
+\usepackage{caption, graphics, subcaption}
+\usepackage{listings}
+\usepackage{courier}
+\usepackage{color}
+\usepackage{hyperref}
+\hypersetup{pdftex, colorlinks=true, linktoc=all, linkcolor=black}
+
+\lstset{
+basicstyle=\footnotesize\ttfamily,
+breaklines=true
+}
+
+
+\usepackage{Sweave}
+\begin{document}
+
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{fontsize=\scriptsize}
+\DefineVerbatimEnvironment{Sinput}{Verbatim}{fontsize=\footnotesize}
+\SweaveOpts{concordance=TRUE, keep.source=FALSE, prefix.string=figures/fig}
+
+
+
+\title{Alignment and Gene Counting - High Output}
+
+
+
+\section{Description}
+
+\noindent The following code aligns the FASTQ files generated in High Output mode and quantifies gene expression for each cell and time point. The \texttt{Exon-overlapping read alignment and gene expression} section performs the STAR alignment on the B6/Cast N-masked genome, and quantifies UMI gene expression relative to the mouse mm10 gene annotation combined with ERCC spike-in sequences (\texttt{mm10ERCC.gtf}). The \texttt{Whole-gene and Intronic gene expression quantification} section quantifies UMI gene expression relative to the combined exonic and intronic gene annotation (\texttt{wholegene.gtf}), and to the intronic gene annotation (\texttt{intron.gtf}). The two latter gene counting procedures will then be used in \texttt{4_CountMatrices.Rnw} to generate the spliced and unspliced gene expression matrices.
+
+
+
+\section{Exon-overlapping read alignment and gene expression}
+
+\subsection{Download FASTQ files}
+
+\noindent Download the \texttt{HighOutput} FASTQ files through the GEO accession number GSE151009 (available at https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE151009), and store them in the \texttt{alignment/Sequencing_Output/HighOutput/} directory.
+
+\subsection{Define STAR indices for masked genome}
+
+\noindent Download STAR aligner (v.2.5.2b) from \texttt{https://github.com/alexdobin/STAR}, and store it in the \texttt{"alignment/scripts/"} folder. Then define a new directory to store STAR indices, \texttt{alignment/Sequencing_Output/HighOutput/mm10ERCC_Index/}. \\ \\ Since the High Output R2 is 48 bp-long, the \texttt{sjdbOverhang} parameter is set to 47 (i.e. read.length - 1). 
+
+\begin{lstlisting}[language=bash]
+path='C:/Users/pacini/Pacini_paper-master/alignment/'
+mm10path=$path'mm10/'
+scriptpath=$path'scripts/'
+indexpath=$path'Sequencing_Output/HighOutput/mm10ERCC_Index/'
+
+$scriptpath'STAR-STAR_2.4.2a/bin/Linux_x86_64/STAR' \
+  --runThreadN 5 \
+  --runMode genomeGenerate \
+  --genomeDir $indexpath \
+  --genomeFastaFiles $mm10path'N_masked_B6_CAST_ERCC92.fa' \
+  --sjdbGTFfile $mm10path'mm10ERCC.gtf' \
+  --sjdbOverhang 47
+\end{lstlisting}[language=bash]  
+
+\subsection{Read demultiplexing}
+
+\subsubsection{Store in a text file the FASTQ file names}
+<<>>=
+path <- "C:/Users/pacini/Pacini_paper-master/alignment/"
+seqpath <- paste0(path, "Sequencing_Output/HighOutput/")
+files <- list.files(path = seqpath)
+files <- files[grepl(pattern = "^mpimg", x = files)]
+files <- unique(strsplit2(files, split = "_R")[,1])
+
+## remove bulk
+files <- files[!grepl(files, pattern = "BULK")]
+write.table(x = files, file = paste0(seqpath, "samples.txt"), 
+            quote = FALSE, sep = "\n", row.names = FALSE, col.names = FALSE)
+
+### combinations text file
+deconvoluted_samples_names <- paste0(rep(paste0("Col_", paste0(rep(c("0", ""), times = c(9, 1)), 1:10)), each = 40), 
+                                     rep(paste0("_Row_", 1:40), times = 10))
+write.table(x = deconvoluted_samples_names, file = paste0(seqpath, "trimmed_sample_names.txt"), 
+            quote = F, sep = "\n", row.names = F, col.names = F)
+
+for(i in 1:10){
+  if(i %in% 1:9){
+    i <- paste0("0", i)
+  }
+  deconvoluted_samples_names <- paste0(rep(paste0("Col_", i), each = 40), rep(paste0("_Row_", 1:40)))
+  write.table(x = deconvoluted_samples_names, file = paste0(seqpath, "trimmed_sample_", i, ".txt"),
+                                                            quote = F, sep = "\n", row.names = F, col.names = F)
+}
+@
+
+\subsubsection{Demultiplex FASTQ files}
+
+\noindent The following bash script:
+
+\begin{itemize}
+\item extracts cellular barcode (XC): bp 1-6 from R1
+\item extracts UMI molecular barcode (XM): bp 7-11 from R1
+\item discards R1, and demultiplexes FASTQ files into single cell FASTQ files based on the \texttt{RowBarcodes.txt} file
+\item for each sequencing time point: creates a folder (010-014) within the \texttt{alignment/Sequencing_Output/HighOutput/Demultiplexed_Filtered_Fastq/} directory, and stores the demultiplexed FASTQ files here
+\end{itemize}
+
+\begin{lstlisting}[language=bash]
+demplx_path=$scriptpath'demultiplex/'
+seqoutput=$path'Sequencing_Output/HighOutput/'
+rowbarcodes=$mm10path'RowBarcodes.txt'
+samples=$path'Sequencing_Output/HighOutput/samples.txt'
+
+$demplx_path'demultiplex_launch.sh' \
+$scriptpath \
+$seqoutput \
+$rowbarcodes \
+$samples
+\end{lstlisting}
+
+\subsection{Single cell STAR alignment to masked genome}
+
+\subsubsection{Download high quality SNPs from GEO}
+
+\noindent Before proceeding with the STAR alignment, the high quality B6/Cast SNPs (\texttt{GSE151009_SNPs_B6_Cast.txt.gz}) are downloaded from the GEO repository (\texttt{https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE151009}), and stored in the \texttt{"alignment/mm10/"} folder.
+
+\begin{lstlisting}[language=bash]
+gunzip -dk $mm10path'GSE151009_SNPs_B6_Cast.txt.gz'
+\end{lstlisting}
+
+\subsubsection{Store time points names}
+
+\noindent The previously demultiplexed data can be used as an input to the allele-specific alignment procedure.
+<<>>=
+f <- list.files(path = paste0(seqpath, "Demultiplexed_Filtered_Fastq/"))
+write.table(f, file = paste0(seqpath, "timepoints.txt"), 
+            sep = "\n", col.names = FALSE, row.names = FALSE, append = FALSE, quote = FALSE)
+@
+
+\subsubsection{STAR alignment}
+
+\noindent The following bash script:
+
+\begin{itemize}
+\item stores the aligned BAM files in the \texttt{alignment/Sequencing_Output/HighOutput/AlleleSpecific/STAR} directory, within a folder for each separate time point (010-014)
+\item Creates a separate folder for each cell, where it stores the BAM file (alignment to the masked genome) \texttt{Aligned.sortedByCoord.out.bam}
+\item The above BAM file is further splitted by SNPsplit according to the high quality SNPs in \texttt{GSE151009_SNPs_B6_Cast.txt}, in the following AS BAM files:
+  \begin{itemize}
+  \item  \texttt{Aligned.sortedByCoord.out.genome1.bam}: reads aligned to masked genome and overlapping SNP, assigned to B6 genome
+  \item \texttt{Aligned.sortedByCoord.out.genome2.bam}: reads aligned to masked genome and overlapping SNP, assigned to Cast genome
+  \end{itemize}
+\end{itemize}
+
+\begin{lstlisting}[language=bash]
+alignment_path=$scriptpath'alignment/'
+dmpx=$seqoutput'Demultiplexed_Filtered_Fastq/'
+fqf=$seqoutput'STAR_fastqfiles_perTimePoint.txt'
+snps=$mm10path'GSE151009_SNPs_B6_Cast.txt'
+as_alignment= $seqoutput'AlleleSpecific/'
+mkdir -p $as_alignment'STAR/'
+
+let mismatch=2
+let multimap=1
+
+$alignment_path'alignment_launch.sh' \
+  $scriptpath \
+  $dmpx \
+  $as_alignment \
+  $mismatch \
+  $indexpath \
+  $multimap \
+  $fqf \
+  $snps
+\end{lstlisting}
+
+\subsection{Gene expression quantification}
+
+\noindent The following bash script:
+
+\begin{itemize}
+\item Merges the STAR aligned files (from \texttt{alignment/Sequencing_Output/HighOutput/AlleleSpecific/STAR/}) to the unaligned BAM files (from \texttt{alignment/Sequencing_Output/HighOutput/MergedBAM/DemplxBAM/})
+\item Tags (GE) all the reads overlapping an annotated region (from \texttt{alignment/mm10/mm10ERCC.gtf})
+\item For each gene and cell, removes all the aligned reads with the same UMI barcode detected within the B6 and Cast AS aligned reads
+\item For each gene and cell, counts the unique number of UMI barcodes from reads aligned to the gene (notAS) and repeats the gene counting only for the reads assigned to either parental alleles
+\item Stores the notAS and AS UMI count matrices in the \texttt{alignment/Sequencing_Output/HighOutput/Counts/DGE/} directory, creating one directory per time point (010-014)
+\item For each time point, the notAS and AS UMI counts for the cell in the first column and row of the sequencing chip are:
+  \begin{itemize}
+  \item notAS: \texttt{Col_01_Row_1_unique_restrUMI_dge.txt}
+  \item AS-B6: \texttt{Col_01_Row_1_genome1_unique_restrUMI_dge.txt}
+  \item notAS: \texttt{Col_01_Row_1_genome2_unique_restrUMI_dge.txt}
+  \end{itemize}
+\end{itemize}
+
+\begin{lstlisting}[language=bash]
+counting_path=$scriptpath'counting/'
+unaligned_path=$seqoutput'MergedBAM/DemplxBAM/'
+annotation=$mm10path'mm10ERCC.gtf'
+inpath=$seqoutput'AlleleSpecific/'
+outpath=$seqoutput'Counts/'
+mkdir -p $outpath
+
+$counting_path'counting_launch.sh' \
+$scriptpath \
+$inpath \
+$seqoutput'trimmed_sample_names.txt' \
+TRUE \
+$mm10path'N_masked_B6_CAST_ERCC92.fa' \
+$annotation \
+$rowbarcodes \
+$outpath \
+$fqf \
+$unaligned_path
+\end{lstlisting}
+
+
+
+\section{Whole-gene and Intronic gene expression quantification}
+
+\noindent Similarly to the exon-overlapping gene quantification, the previously aligned BAM files are merged with the unaligned ones. Then, all the reads overlapping with the GTF annotation (\texttt{wholegene.gtf} or \texttt{intron.gtf}) are tagged with a GE. For each gene and cell: removes the reads with same UMI barcode within the B6 and Cast reads GE-tagged by the \texttt{wholegene.gtf} annotation, and quantifies the number of transcripts from each gene and cell as the unique number of UMI barcodes across the GE-tagged reads. The count matrices are then stored in the \texttt{alignment/Sequencing_Output/HighOutput/Counts_wholegene/DGE/} and \texttt{alignment/Sequencing_Output/HighOutput/Counts_intron/DGE/}, respectively for the two annotations.
+
+\subsection{Gene expression quantification}
+
+\begin{lstlisting}[language=bash]
+% whole-gene
+unaligned_path=$seqoutput'MergedBAM/DemplxBAM/'
+annotation=$mm10path'wholegene.gtf'
+inpath=$seqoutput'AlleleSpecific/'
+outpath=$seqoutput'Counts_wholegene/'
+mkdir -p $outpath
+
+$counting_path'counting_spliced_launch.sh' \
+$scriptpath \
+$inpath \
+$seqoutput'trimmed_sample_names.txt' \
+TRUE \
+$mm10path'N_masked_B6_CAST_ERCC92.fa' \
+$annotation \
+$rowbarcodes \
+$outpath \
+$fqf \
+$unaligned_path
+
+% intron
+annotation=$mm10path'intron.gtf'
+outpath=$seqoutput'Counts_intron/'
+mkdir -p $outpath
+
+$counting_path'counting_spliced_launch.sh' \
+$scriptpath \
+$inpath \
+$seqoutput'trimmed_sample_names.txt' \
+TRUE \
+$mm10path'N_masked_B6_CAST_ERCC92.fa' \
+$annotation \
+$rowbarcodes \
+$outpath \
+$fqf \
+$unaligned_path
+
+% remove GE-tagged reads when the same UMI barcode is detected across the B6 and Cast reads
+wholegene_path=$seqoutput'Counts_wholegene/'
+intron_path=$seqoutput'Counts_intron/'
+
+$counting_path'counting_noASmisleading_spliced.sh' \
+$scriptpath \
+$inpath \
+$seqoutput'trimmed_sample_names.txt' \
+TRUE \
+$mm10path'N_masked_B6_CAST_ERCC92.fa' \
+$annotation \
+$rowbarcodes \
+$outpath \
+$fqf \
+$unaligned_path \
+$wholegene_path
+\end{lstlisting}
+
+\end{document}
