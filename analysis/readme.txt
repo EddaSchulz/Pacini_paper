@@ -34,5 +34,7 @@ The "analysis/" folder includes the R script used to perform each analysis ("ana
 
 The "analysis_launch.Rnw" Sweave R file can be run using R (v.3.6.1) software (available at "https://cran.r-project.org/"). This R script downloads the count matrices from the GEO repository (available at "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE151009") and stores them in the "GSE151009/" directory. Then it launches the scripts stored in the "scripts/" folder, and stores the results and figures highlighted in the manuscript in the "output/" directory.
 
+In the first section of the "analysis_launch.Rnw" Sweave R file, the user has to define the "path" variable as the directory where the "Pacini_paper/analysis/" folder has been stored.
+
 ### Computational time
 The "analysis_launch.Rnw" Sweave R script can be run locally in about 25 minutes.
