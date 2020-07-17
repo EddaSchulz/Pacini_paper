@@ -33,6 +33,20 @@ breaklines=true
 
 
 
+\section{Define the path storing the GitHub repository}
+
+\noindent Define the alignment path to the directory where the GitHub repository was downloaded, in R and BASH languages.
+
+<<>>=
+path <- "C:/Users/pacini/Pacini_paper-master/alignment/"
+@
+
+\begin{lstlisting}[language=bash]
+path='C:/Users/pacini/Pacini_paper-master/alignment/'
+\end{lstlisting}
+
+
+
 \section{Define fasta, gtf and dictionary files}
 
 \subsection{FASTA and GTF: Combine r90 GRCm38 mm10 with ERCC92 sequences}
@@ -40,7 +54,7 @@ breaklines=true
 \noindent Download the FASTA file (\texttt{Mus_musculus.GRCm38.dna_sm.primary_assembly.fa.gz}) and GTF annotation file (\texttt{Mus_musculus.GRCm38.90.gtf.gz}) from \texttt{http://www.ensembl.org/Mus_musculus/Info/Index} and store them in the \texttt{"alignment/mm10/"} directory. \\ \\ The following code combines the mouse and ERCC-92 FASTA and GTF files.
 
 \begin{lstlisting}[language=bash]
-mm10path='C:/Users/pacini/Pacini_paper-master/alignment/mm10/'
+mm10path=$path'mm10/'
 gunzip -dk $mm10path'Mus_musculus.GRCm38.dna_sm.primary_assembly.fa.gz'
 gunzip -dk $mm10path'Mus_musculus.GRCm38.90.gtf.gz'
 cat $mm10path'Mus_musculus.GRCm38.dna_sm.primary_assembly.fa' $mm10path'ERCC92.fa' > $mm10path'mm10ERCC.fasta'
@@ -54,7 +68,7 @@ cat $mm10path'Mus_musculus.GRCm38.90.gtf' $mm10path'ERCC92.gtf' > $mm10path'mm10
 \noindent Store Picard JAVA scripts (v.2.7.1) in the \texttt{"alignment/scripts/"} directory, and download Drop-seq java scripts (v.1.12) from \textit{https://github.com/broadinstitute/Drop-seq/} in the same folder. \\ \\ Use picard-CreateSequenceDictionary function to define the dictionary, and the Drop-Seq ConvertToRefFlat function to create a refFlat file.
 
 \begin{lstlisting}[language=bash]
-scriptpath='C:/Users/pacini/Pacini_paper-master/alignment/scripts/'
+scriptpath=$path'scripts/'
 
 java -jar $scriptpath'picard-2.7.1/picard.jar' CreateSequenceDictionary \
   REFERENCE=$mm10path'mm10ERCC.fasta' \
@@ -116,7 +130,7 @@ java -jar $scriptpath'picard-2.7.1/picard.jar' CreateSequenceDictionary \
 \subsection{Load GTF file into R}
 <<>>=
 library(data.table)
-mm10path <- "C:/Users/pacini/Pacini_paper-master/alignment/mm10/"
+mm10path <- paste0(path, "mm10/")
 gtf_file <- paste0(mm10path, "mm10ERCC.gtf")
 
 # read gtf file

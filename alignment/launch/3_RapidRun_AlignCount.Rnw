@@ -33,6 +33,20 @@ breaklines=true
 
 
 
+\section{Define the path storing the GitHub repository}
+
+\noindent Define the alignment path to the directory where the GitHub repository was downloaded, in R and BASH languages.
+
+<<>>=
+path <- "C:/Users/pacini/Pacini_paper-master/alignment/"
+@
+
+\begin{lstlisting}[language=bash]
+path='C:/Users/pacini/Pacini_paper-master/alignment/'
+\end{lstlisting}
+
+
+
 \section{Exon-overlapping read alignment and gene expression}
 
 \subsection{Download FASTQ files}
@@ -44,7 +58,6 @@ breaklines=true
 \noindent Download STAR aligner (v.2.5.2b) from \texttt{https://github.com/alexdobin/STAR}, and store it in the \texttt{"alignment/scripts/"} folder. Then define a new directory to store STAR indices, \texttt{alignment/Sequencing_Output/RapidRun/mm10ERCC_Index/}. \\ \\ Since the Rapid Run R2 is 36 bp-long, the \texttt{sjdbOverhang} parameter is set to 35 (i.e. read.length - 1). 
 
 \begin{lstlisting}[language=bash]
-path='C:/Users/pacini/Pacini_paper-master/alignment/'
 mm10path=$path'mm10/'
 scriptpath=$path'scripts/'
 indexpath=$path'Sequencing_Output/RapidRun/mm10ERCC_Index/'
@@ -62,7 +75,6 @@ $scriptpath'STAR-STAR_2.4.2a/bin/Linux_x86_64/STAR' \
 
 \subsubsection{Store in a text file the FASTQ file names}
 <<>>=
-path <- "C:/Users/pacini/Pacini_paper-master/alignment/"
 seqpath <- paste0(path, "Sequencing_Output/RapidRun/")
 files <- list.files(path = seqpath)
 files <- files[grepl(pattern = "^mpimg", x = files)]

@@ -33,13 +33,26 @@ breaklines=true
 
 
 
+\section{Define the path storing the GitHub repository}
+
+\noindent Define the alignment path to the directory where the GitHub repository was downloaded, in R and BASH languages.
+
+<<>>=
+path <- "C:/Users/pacini/Pacini_paper-master/alignment/"
+@
+
+\begin{lstlisting}[language=bash]
+path='C:/Users/pacini/Pacini_paper-master/alignment/'
+\end{lstlisting}
+
+
+
 \section{Exon-overlapping gene expression}
 
 \subsection{Not Allele Specific (notAS) gene expression}
 
 \subsubsection{Load UMI count path and define sample names}
 <<>>=
-path <- "C:/Users/pacini/Pacini_paper-master/alignment/"
 sample_name <- paste0(rep(paste0("Col_", paste0(rep(c("0", ""), times = c(9, 1)), 1:10)), each = 40), 
                       rep(paste0("_Row_", 1:40), times = 10))
 Time <- c("010", "011", "012", "013", "014")
