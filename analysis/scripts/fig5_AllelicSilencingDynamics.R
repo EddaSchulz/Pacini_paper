@@ -115,7 +115,7 @@ df_sk$XCR <- df_sk$b6_X/(df_sk$b6_X + df_sk$cast_X)
 print("4.2) Define function to perform differential silencing analysis")
 XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast_MA"), idplot = "B6", useCounts = TRUE,
                                       nbins = 5, mincount = 20, mincells = 5, includeXistUnd_firstbin = TRUE,
-                                      offset_XiXa = 0.1, logXiXa = TRUE, #XiXa computing
+                                      offset_XiXa = 0.1, logXiXa = TRUE,
                                       bsl_count = TRUE, XistUnd_XCRthr_low = 0.4, XistUnd_XCRthr_high = 0.6, XistUndTime = "0hrs", 
                                       outpath = report_path, kseed = 0, kiter = 10^5, minbin = 3,
                                       normalize2baseline = TRUE, mincount_cellfit = 5, mincell_cellfit = 10, mincount_cellfit_bin=5,

@@ -38,6 +38,7 @@ breaklines=true
 \noindent Define the alignment path to the directory where the GitHub repository was downloaded, in R and BASH languages.
 
 <<>>=
+library(data.table); library(doParallel); library(foreach)
 path <- "C:/Users/pacini/Pacini_paper-master/alignment/"
 @
 
@@ -61,45 +62,51 @@ TimePoints <- c("d0", "d1", "d2", "d3", "d4")
 
 \subsubsection{Identify detected genes across cells and time points}
 <<>>=
-dir <- c("HighOutput", "RapidRun"); allgenes <- c()
-for(i in 1:length(Time)){
-  time <- Time[i]
+dir <- c("HighOutput", "RapidRun")
+
+no_cores <- detectCores(); no_cores <- min(no_cores, 10)
+cl <- makeCluster(no_cores)
+registerDoParallel(cl) 
+temp <- foreach(i=1:length(Time), .combine = c, 
+        .packages = c("data.table")) %dopar% {
+          
+          time <- Time[i]; genes <- c()
   
-  for(d in dir){
-    
-    if( (time == "011") | (d == "HighOutput")){
-      
-      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
-      file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
-      
-      for(j in 1:length(file)){
-        temp <- read.delim(file[j], row.names = 1)
-        allgenes <- unique(c(allgenes, rownames(temp)))
-      }
-    }
-  }
-}
+          for(d in dir){
+            
+            if( (time == "011") | (d == "HighOutput")){
+              
+              file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", 
+                             sample_name, "_unique_restrUMI_dge.txt")
+              
+              for(j in 1:length(file)){
+                temp <- fread(input = file[j]); genes <- unique(c(genes, temp$GENE))
+              }
+            }
+          }
+          return(genes)
+        }
+stopCluster(cl)
+allgenes <- unique(temp)
 @
 
 \subsubsection{Define one count matrix per time point}
 <<>>=
-for(i in 1:length(Time)){
+cl <- makeCluster(no_cores)
+registerDoParallel(cl) 
+foreach(i=1:length(Time), .packages = c("data.table")) %dopar% {
   time <- Time[i]
-  
   for(d in dir){
     
     if( (time == "011") | (d == "HighOutput")){
       
-      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
-      file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
-      
+      file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", 
+                     sample_name, "_unique_restrUMI_dge.txt")
       count_matrix <- c()
-      
       for(j in 1:length(file)){
-
+        
         # load count matrix
-        data <- read.delim(file[j], row.names = 1)
-        obs_genes <- rownames(data)
+        data <- fread(input = file[j]); obs_genes <- data$GENE; data <- as.matrix(data[,-1])
         data <- matrix(data[,colSums(data)>0], nrow = length(obs_genes))
         rownames(data) <- obs_genes
         
@@ -112,10 +119,9 @@ for(i in 1:length(Time)){
         m_genes <- match(allgenes, rownames(data_expand))
         data_ordered <- data_expand[m_genes, ]
         count_matrix <- cbind(count_matrix, data_ordered)
-        
       }
       colnames(count_matrix) <- paste0(TimePoints[i], "_", sample_name)
-      
+
       # save count matrix
       outpath <- paste0(path, "Sequencing_Output/", d, "/Count_Matrices/")
       dir.create(path = outpath, showWarnings = F, recursive = T)
@@ -124,6 +130,7 @@ for(i in 1:length(Time)){
     }
   }
 }
+stopCluster(cl)
 @
 
 \subsubsection{Combine counts of HighOutput and RapidRun for d1}
@@ -152,40 +159,47 @@ for(i in 1:length(TimePoints)){
   counts <- cbind(counts, count_matrix)
 }
 save(counts, file = paste0(outpath, "UMICountMatrix.RData"))
-write.table(x = counts, file = paste0(outpath, "UMICountMatrix.txt"), row.names = T, col.names = T)
+write.table(x = counts, file = paste0(outpath, "UMICountMatrix_temp.txt"), row.names = T, col.names = T)
 @
 
 \subsection{Allele Specific (AS) gene expression}
 
 \subsubsection{Identify detected genes across cells and time points}
 <<>>=
-dir <- c("HighOutput", "RapidRun"); allgenes <- c()
-for(i in 1:length(Time)){
-  time <- Time[i]
+cl <- makeCluster(no_cores)
+registerDoParallel(cl) 
+temp <- foreach(i=1:length(Time), .combine = c, 
+        .packages = c("data.table")) %dopar% {
+          
+          time <- Time[i]; genes <- c()
   
-  for(d in dir){
-    
-    if( (time == "011") | (d == "HighOutput")){
-      
-      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
-      file_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_genome1_unique_restrUMI_dge.txt")
-      file_cast <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_genome2_unique_restrUMI_dge.txt")
-      file <- c(file_b6, file_cast)
-      
-      for(j in 1:length(file)){
-        temp <- read.delim(file[j], row.names = 1)
-        allgenes <- unique(c(allgenes, rownames(temp)))
-      }
-    }
-  }
-}
+          for(d in dir){
+            
+            if( (time == "011") | (d == "HighOutput")){
+              
+              file_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", 
+                                sample_name, "_genome1_unique_restrUMI_dge.txt")
+              file_cast <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", 
+                                  sample_name, "_genome2_unique_restrUMI_dge.txt")
+              file <- c(file_b6, file_cast)
+              
+              for(j in 1:length(file)){
+                temp <- fread(input = file[j]); genes <- unique(c(genes, temp$GENE))
+              }
+            }
+          }
+          return(genes)
+        }
+stopCluster(cl)
+allgenes <- unique(temp)
 @
 
 \subsubsection{Define one count matrix per time point}
 <<>>=
-for(i in 1:length(Time)){
+cl <- makeCluster(no_cores)
+registerDoParallel(cl) 
+foreach(i=1:length(Time), .packages = c("data.table")) %dopar% {
   time <- Time[i]
-  
   for(d in dir){
     
     if( (time == "011") | (d == "HighOutput")){
@@ -193,16 +207,14 @@ for(i in 1:length(Time)){
       for(g in c("genome1", "genome2")){
         
         id <- ifelse(g == "genome1", "B6", "Cast")
-        print(paste0("Processing time ", TimePoints[i], ", allele ", id, ", and directory ", d, "..."))
-        file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", sample_name, "_", g, "_unique_restrUMI_dge.txt")
+        file <- paste0(path, "Sequencing_Output/", d, "/Counts/DGE/", time, "/", 
+                       sample_name, "_", g, "_unique_restrUMI_dge.txt")
         
         count_matrix <- c()
-      
         for(j in 1:length(file)){
-  
+          
           # load count matrix
-          data <- read.delim(file[j], row.names = 1)
-          obs_genes <- rownames(data)
+          data <- fread(input = file[j]); obs_genes <- data$GENE; data <- as.matrix(data[,-1])
           data <- matrix(data[,colSums(data)>0], nrow = length(obs_genes))
           rownames(data) <- obs_genes
           
@@ -215,19 +227,18 @@ for(i in 1:length(Time)){
           m_genes <- match(allgenes, rownames(data_expand))
           data_ordered <- data_expand[m_genes, ]
           count_matrix <- cbind(count_matrix, data_ordered)
-          
         }
         colnames(count_matrix) <- paste0(TimePoints[i], "_", sample_name)
-        
+  
         # save count matrix
         outpath <- paste0(path, "Sequencing_Output/", d, "/Count_Matrices/")
         outfile <- paste0(outpath, "UMI_counts_matrix_", TimePoints[i], "_", id, ".RData")
         save(count_matrix, file = outfile)
-        
       }
     }
   }
 }
+stopCluster(cl)
 @
 
 \subsubsection{Combine counts of HighOutput and RapidRun for d1}
@@ -271,33 +282,40 @@ for(g in c("B6", "Cast")){
 
 \subsubsection{Identify detected genes across cells and time points}
 <<>>=
-dir <- c("HighOutput", "RapidRun"); allgenes <- c()
-for(i in 1:length(Time)){
-  time <- Time[i]
+cl <- makeCluster(no_cores)
+registerDoParallel(cl) 
+temp <- foreach(i=1:length(Time), .combine = c, 
+        .packages = c("data.table")) %dopar% {
+          
+          time <- Time[i]; genes <- c()
   
-  for(d in dir){
-    
-    if( (time == "011") | (d == "HighOutput")){
-      
-      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
-      file_wholegene <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
-      file_intron <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
-      file <- c(file_wholegene, file_intron)
-      
-      for(j in 1:length(file)){
-        temp <- read.delim(file[j], row.names = 1)
-        allgenes <- unique(c(allgenes, rownames(temp)))
-      }
-    }
-  }
-}
+          for(d in dir){
+            
+            if( (time == "011") | (d == "HighOutput")){
+              
+              file_wholegene <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", 
+                                       sample_name, "_unique_restrUMI_dge.txt")
+              file_intron <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", 
+                                    sample_name, "_unique_restrUMI_dge.txt")
+              file <- c(file_wholegene, file_intron)
+              
+              for(j in 1:length(file)){
+                temp <- fread(input = file[j]); genes <- unique(c(genes, temp$GENE))
+              }
+            }
+          }
+          return(genes)
+        }
+stopCluster(cl)
+allgenes <- unique(temp)
 @
 
 \subsubsection{Define one count matrix per time point}
 <<>>=
-for(i in 1:length(Time)){
+cl <- makeCluster(no_cores)
+registerDoParallel(cl) 
+foreach(i=1:length(Time), .packages = c("data.table")) %dopar% {
   time <- Time[i]
-  
   for(d in dir){
     
     if( (time == "011") | (d == "HighOutput")){
@@ -305,16 +323,14 @@ for(i in 1:length(Time)){
       for(w in c("Counts_wholegene", "Counts_intron")){
         
         id <- gsub(x = w, pattern = "Counts_", replacement = "")
-        print(paste0("Processing time ", TimePoints[i], ", annotation: ", id, ", and directory ", d, "..."))
-        file <- paste0(path, "Sequencing_Output/", d, "/", w, "/DGE/", time, "/", sample_name, "_unique_restrUMI_dge.txt")
+        file <- paste0(path, "Sequencing_Output/", d, "/", w, "/DGE/", time, "/", 
+                       sample_name, "_unique_restrUMI_dge.txt")
         
         count_matrix <- c()
-      
         for(j in 1:length(file)){
-  
+          
           # load count matrix
-          data <- read.delim(file[j], row.names = 1)
-          obs_genes <- rownames(data)
+          data <- fread(input = file[j]); obs_genes <- data$GENE; data <- as.matrix(data[,-1])
           data <- matrix(data[,colSums(data)>0], nrow = length(obs_genes))
           rownames(data) <- obs_genes
           
@@ -327,19 +343,18 @@ for(i in 1:length(Time)){
           m_genes <- match(allgenes, rownames(data_expand))
           data_ordered <- data_expand[m_genes, ]
           count_matrix <- cbind(count_matrix, data_ordered)
-          
         }
         colnames(count_matrix) <- paste0(TimePoints[i], "_", sample_name)
-        
+  
         # save count matrix
         outpath <- paste0(path, "Sequencing_Output/", d, "/Count_Matrices/")
         outfile <- paste0(outpath, "UMI_counts_matrix_", TimePoints[i], "_", id, ".RData")
         save(count_matrix, file = outfile)
-        
       }
     }
   }
 }
+stopCluster(cl)
 @
 
 \subsubsection{Combine counts of HighOutput and RapidRun for d1}
@@ -404,39 +419,44 @@ for(w in c("exonic", "intron")){
 
 \subsubsection{Identify detected genes across cells and time points}
 <<>>=
-dir <- c("HighOutput", "RapidRun"); allgenes <- c()
-for(i in 1:length(Time)){
-  time <- Time[i]
+cl <- makeCluster(no_cores)
+registerDoParallel(cl) 
+temp <- foreach(i=1:length(Time), .combine = c, 
+        .packages = c("data.table")) %dopar% {
+          
+          time <- Time[i]; genes <- c()
   
-  for(d in dir){
-    
-    if( (time == "011") | (d == "HighOutput")){
-      
-      print(paste0("Processing time ", TimePoints[i], ", and directory ", d, "..."))
-      file_wholegene_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", 
+          for(d in dir){
+            
+            if( (time == "011") | (d == "HighOutput")){
+              
+              file_wholegene_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", 
                                   sample_name, "_genome1_unique_restrUMI_dge.txt")
-      file_wholegene_cast <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", 
-                                    sample_name, "_genome2_unique_restrUMI_dge.txt")
-      file_intron_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", 
-                               sample_name, "_genome1_unique_restrUMI_dge.txt")
-      file_intron_cast <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", 
-                                 sample_name, "_genome2_unique_restrUMI_dge.txt")
-      file <- c(file_wholegene_b6, file_wholegene_cast, file_intron_b6, file_intron_cast)
-      
-      for(j in 1:length(file)){
-        temp <- read.delim(file[j], row.names = 1)
-        allgenes <- unique(c(allgenes, rownames(temp)))
-      }
-    }
-  }
-}
+              file_wholegene_cast <- paste0(path, "Sequencing_Output/", d, "/Counts_wholegene/DGE/", time, "/", 
+                                            sample_name, "_genome2_unique_restrUMI_dge.txt")
+              file_intron_b6 <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", 
+                                       sample_name, "_genome1_unique_restrUMI_dge.txt")
+              file_intron_cast <- paste0(path, "Sequencing_Output/", d, "/Counts_intron/DGE/", time, "/", 
+                                         sample_name, "_genome2_unique_restrUMI_dge.txt")
+              file <- c(file_wholegene_b6, file_wholegene_cast, file_intron_b6, file_intron_cast)
+              
+              for(j in 1:length(file)){
+                temp <- fread(input = file[j]); genes <- unique(c(genes, temp$GENE))
+              }
+            }
+          }
+          return(genes)
+        }
+stopCluster(cl)
+allgenes <- unique(temp)
 @
 
 \subsubsection{Define one count matrix per time point}
 <<>>=
-for(i in 1:length(Time)){
+cl <- makeCluster(no_cores)
+registerDoParallel(cl) 
+foreach(i=1:length(Time), .packages = c("data.table")) %dopar% {
   time <- Time[i]
-  
   for(d in dir){
     
     if( (time == "011") | (d == "HighOutput")){
@@ -449,14 +469,12 @@ for(i in 1:length(Time)){
           id_w <- gsub(x = w, pattern = "Counts_", replacement = "")
           print(paste0("Processing time ", TimePoints[i], ", annotation: ", id_w, ", allele ", id_g, ", and directory ", d, "..."))
           file <- paste0(path, "Sequencing_Output/", d, "/", w, "/DGE/", time, "/", sample_name, "_", g, "_unique_restrUMI_dge.txt")
-          
-          count_matrix <- c()
         
+          count_matrix <- c()
           for(j in 1:length(file)){
-    
+            
             # load count matrix
-            data <- read.delim(file[j], row.names = 1)
-            obs_genes <- rownames(data)
+            data <- fread(input = file[j]); obs_genes <- data$GENE; data <- as.matrix(data[,-1])
             data <- matrix(data[,colSums(data)>0], nrow = length(obs_genes))
             rownames(data) <- obs_genes
             
@@ -469,10 +487,9 @@ for(i in 1:length(Time)){
             m_genes <- match(allgenes, rownames(data_expand))
             data_ordered <- data_expand[m_genes, ]
             count_matrix <- cbind(count_matrix, data_ordered)
-            
           }
           colnames(count_matrix) <- paste0(TimePoints[i], "_", sample_name)
-          
+    
           # save count matrix
           outpath <- paste0(path, "Sequencing_Output/", d, "/Count_Matrices/")
           outfile <- paste0(outpath, "UMI_counts_matrix_", TimePoints[i], "_", id_w, "_", id_g, ".RData")
@@ -482,6 +499,7 @@ for(i in 1:length(Time)){
     }
   }
 }
+stopCluster(cl)
 @
 
 \subsubsection{Combine counts of HighOutput and RapidRun for d1}

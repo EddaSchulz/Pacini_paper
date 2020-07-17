@@ -12,6 +12,8 @@ In order to perform these analyses, the following have to be installed and store
 
 R scripts can be run using R (v.3.6.1) software (available at "https://cran.r-project.org/"). The following R libraries are required:
 - data.table (v.1.12.8)
+- doParallel (v.1.0.15)
+- foreach (v.1.5.0)
 - edgeR (v.3.26.8)
 - plyr (v.1.8.6)
 
@@ -27,4 +29,4 @@ In the first section of (i)-(iv), the user has to define the "path" variable as 
 The above Sweave R scripts launch the BASH and R scripts stored in the "alignment/scripts/" folder, and store the resulting allele specific (AS) and not-AS count matrices (exon-overlapping, spliced and unspliced) in the "alignment/Count_Matrices/" output directory. The "alignment/mm10/" folder includes some files necessary to run (i), and the GTF files for the intronic ("intron.gtf.gz") and exonic&intronic ("wholegene.gtf.gz") mm10 gene annotations.
 
 ### Computational time
-The computational time required to run the scripts generating the GTF files in (i) and the ones stored in the "scripts/alignment/" and "scripts/counting/" directories can be drastically reduced through parallel computing. If the above scripts are parallelized over 30 cores, the computational time required to reproduce the single cell alignment and gene expression quantification described in (i)-(iii) is about 2 hours. The (iv) R script can be run locally in about 20 minutes.
+The computational time required to run the scripts generating the GTF files in (i) and the ones stored in the "scripts/alignment/" and "scripts/counting/" directories can be drastically reduced through parallel computing. If the above scripts are parallelized over 30 nodes using 10 cores each, the computational time required to reproduce the single cell alignment and gene expression quantification described in (i)-(iii) is about 2 hours. The (iv) R script can be run locally on a quad-core CPU in about 20 minutes.
