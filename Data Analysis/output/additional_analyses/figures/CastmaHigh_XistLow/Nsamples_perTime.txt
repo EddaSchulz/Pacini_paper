@@ -1,6 +1,0 @@
-Time CastmaHigh XistLow
-0hrs 0 274
-24hrs 2 169
-48hrs 11 52
-72hrs 36 98
-96hrs 27 116

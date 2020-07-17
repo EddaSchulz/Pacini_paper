@@ -1,6 +1,0 @@
-Time XistHigh XistLow
-0hrs 0 274
-24hrs 68 169
-48hrs 242 52
-72hrs 140 98
-96hrs 111 116

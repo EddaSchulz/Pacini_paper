@@ -1,6 +1,0 @@
-Time BA Undetected
-0hrs 0 260
-24hrs 29 70
-48hrs 92 17
-72hrs 15 42
-96hrs 1 46

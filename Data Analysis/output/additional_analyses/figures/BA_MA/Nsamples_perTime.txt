@@ -1,6 +1,0 @@
-Time BA MA
-0hrs 0 3
-24hrs 29 45
-48hrs 92 90
-72hrs 15 99
-96hrs 1 122

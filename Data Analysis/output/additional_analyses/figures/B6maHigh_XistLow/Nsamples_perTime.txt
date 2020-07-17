@@ -1,6 +1,0 @@
-Time B6maHigh XistLow
-0hrs 0 274
-24hrs 27 169
-48hrs 73 52
-72hrs 60 98
-96hrs 68 116
