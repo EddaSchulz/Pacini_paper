@@ -24,13 +24,6 @@ XX <- estimateDispersions(XX)
 
 # identify DE genes over time --> select top 500 DE genes
 pData(XX)$hour <- pData(XX)$day*24
-pData(XX)$Entropy <- esApply(XX, 2, function(x){
-  x <- round(x / Size_Factor)
-  x <- x/sum(x)
-  y <- x * log(x)
-  y[is.finite(y) == FALSE] <- 0
-  H = - sum(y)
-})
 de <- differentialGeneTest(XX, fullModelFormulaStr="~hour", cores=detectCores())
 top_pdt_genes <- 500
 de_genes <- de[de$qval < 1e-2,]
@@ -117,11 +110,10 @@ save(notAS_vel, file = paste0(outpath, "notAS_vel.RData"))
 print("3.2) Compute notAS UMAP embedding")
 
 # settings
-pcount <- 1; umap_nPcs <- 50; umap_nn <- 20; neighbor_size <- 100
+pcount <- 1; mvg <- 500; umap_nPcs <- 50; umap_nn <- 20; neighbor_size <- 100; mult <- 1e3
 quantile <- 0.025; min.correlation <- min.slope <- 0.05; 
 grid_size <- 30; arrow.pca <- 2.5; arrow <- 2.5; arrow.lwd <- 1; grid.mass <- 5
 gapT <- 1; k_range <- 30; controlby <- "time"; cor_dist_measure <- "cor"; velocity_scale <- "sqrt"
-mult <- 1e3; mvg <- 500
 
 # load data and define marker genes
 load(paste0(datapath, "DGE.RData"))

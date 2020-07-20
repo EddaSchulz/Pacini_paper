@@ -375,7 +375,7 @@ sub <- sub[!sub$Gene %in% "Xist",]
 print("6.2) Remove pseudogenes and select significant genes at day 1/2")
 # remove pseudogenes
 sub$gene_biotype <- bm$gene_biotype[match(sub$Gene, bm$mgi_symbol)]
-sub <- sub[!sub$gene_biotype %in% "pseudogene",]
+sub <- sub[!grepl(x = sub$gene_biotype, pattern = "pseudogene"),]
 
 # select genes showing significant correlation to Xist expression at day 1/2
 sub_sig <- sub[(sub$fdr_Xist<0.05)&(!is.na(sub$fdr_Xist)),]

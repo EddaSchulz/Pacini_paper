@@ -119,8 +119,7 @@ XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast
                                       bsl_count = TRUE, XistUnd_XCRthr_low = 0.4, XistUnd_XCRthr_high = 0.6, XistUndTime = "0hrs", 
                                       outpath = report_path, kseed = 0, kiter = 10^5, minbin = 3,
                                       normalize2baseline = TRUE, mincount_cellfit = 5, mincell_cellfit = 10, mincount_cellfit_bin=5,
-                                      percentageXinactive = TRUE, equallysized = TRUE, minsilencing_perc = 10, zeroIntercept = FALSE,
-                                      weighted = TRUE){
+                                      percentageXinactive = TRUE, minsilencing_perc = 10){
   
   print(paste0("0) subset to Xist-MA cells only & define inactive counts..."))
   id <- paste0(x$Time, "_", x$Cell)
@@ -139,15 +138,10 @@ XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast
   print(paste0("0ter) exclude cells with silencing below ", minsilencing_perc, "%..."))
   data <- data[data$AXCR >= minsilencing_perc,]
   
-  print(paste0("0quat) breaks for percentage of silencing"))
-  if(!equallysized){
-    break_XCR <- seq(0, 100, length = nbins+1)
-    levels_bin <- levels(cut(seq(0, 100, by = 1), breaks = break_XCR, include.lowest = TRUE))
-    data$bin_XCR <- cut(data$AXCR, breaks = break_XCR, include.lowest = TRUE)
-  }else{
-    data$bin_XCR <- quantileCut(x = data$AXCR, n = nbins)
-    levels_bin <- levels(data$bin_XCR)
-  }
+  print(paste0("0quat) breaks for percentage of silencing in equally sized bins"))
+  break_XCR <- seq(0, 100, length = nbins+1)
+  levels_bin <- levels(cut(seq(0, 100, by = 1), breaks = break_XCR, include.lowest = TRUE))
+  data$bin_XCR <- cut(data$AXCR, breaks = break_XCR, include.lowest = TRUE)
   
   print(paste0("1) define metacell group based on nbins and AXCR and store # of cells..."))
   data <- ddply(data, .variables = .(bin_XCR), transform, bin_ncells = length(unique(id)))
@@ -241,225 +235,74 @@ XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast
   
   print(paste0("8) Fit linear model with free intercept for each gene separating fits for Xist-MA Cast/B6 cells..."))
   allgenes <- unique(c(as.character(data_filt$Gene), as.character(data_cell_fit$Gene)))
-  # allgenes <- unique(as.character(unique(res_either$Gene))); common_genes <- unique(as.character(res_keep$Gene))
-  
+
   model_fit <- model_fit_sc <- c()
-  if(zeroIntercept){
+  for(i in seq_len(length(allgenes))){
+    gene <- allgenes[i]
     
-    for(i in seq_len(length(allgenes))){
-      gene <- allgenes[i]
+    temp <- data_filt[data_filt$Gene %in% gene,]
+    temp$w <- temp$sumXa_count + temp$sumXi_count
+    
+    temp_sc <- data_cell_fit[data_cell_fit$Gene %in% gene,]
+    temp_sc$w <- temp_sc$inactive_count + temp_sc$active_count
+    
+    # bin analysis
+    if((length(unique(temp$Xist))==2) & (gene %in% test_both)){
+      complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, data = temp)
+      oneslope <- lm(logXiXa ~ 0 + AXCR, data = temp)
       
-      temp <- data_filt[data_filt$Gene %in% gene,]
-      temp$w <- temp$sumXa_count + temp$sumXi_count
+      int_b6 <- 0; slope_b6 <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
+      int_cast <- 0; slope_cast <- complete$coefficients[c("AXCR")]
       
-      temp_sc <- data_cell_fit[data_cell_fit$Gene %in% gene,]
-      temp_sc$w <- temp_sc$inactive_count + temp_sc$active_count
-      
-      # bin analysis
-      if((length(unique(temp$Xist))==2) & (gene %in% test_both)){
-        
-        if(weighted){
-          
-          complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, weights = w, data = temp)
-          oneslope <- lm(logXiXa ~ 0 + AXCR, weights = w, data = temp)
-          
-          int_b6 <- 0; slope_b6 <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
-          int_cast <- 0; slope_cast <- complete$coefficients[c("AXCR")]
-          
-          anv <- anova(oneslope, complete)
-          slope_pvalue <- anv$`Pr(>F)`[2]
-          
-        }else{
-          complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, data = temp)
-          oneslope <- lm(logXiXa ~ 0 + AXCR, data = temp)
-          
-          int_b6 <- 0; slope_b6 <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
-          int_cast <- 0; slope_cast <- complete$coefficients[c("AXCR")]
-          
-          anv <- anova(oneslope, complete)
-          slope_pvalue <- anv$`Pr(>F)`[2]
-        }
-      }else{
-        int_cast <- int_b6 <- slope_cast <- slope_b6 <- slope_pvalue <- NA
-      }
-      
-      #single allele analysis
-      
-      # test b6
-      if(gene %in% test_b6){
-        if(weighted){
-          fit <- lm(logXiXa ~ 0 + AXCR, weights = w, data = temp[temp$Xist == "BL6_MA",])
-        }else{
-          fit <- lm(logXiXa ~ 0 + AXCR, data = temp[temp$Xist == "BL6_MA",])
-        }
-        int_b6 <- 0; slope_b6 <- fit$coefficients["AXCR"]; bic_b6 <- BIC(fit)
-      }else{
-        int_b6 <- slope_b6 <- bic_b6 <- NA
-      }
-      
-      # test cast
-      if(gene %in% test_cast){
-        if(weighted){
-          fit <- lm(logXiXa ~ 0 + AXCR, weights = w, data = temp[temp$Xist == "Cast_MA",])
-        }else{
-          fit <- lm(logXiXa ~ 0 + AXCR, data = temp[temp$Xist == "Cast_MA",])
-        }
-        int_cast <- 0; slope_cast <- fit$coefficients["AXCR"]; bic_cast <- BIC(fit)
-      }else{
-        int_cast <- slope_cast <- bic_cast <- NA
-      }
-      
-      # single cell analysis
-      if(length(unique(temp_sc$Xist))==2){
-        
-        if(weighted){
-          
-          complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, weights = w, data = temp_sc)
-          oneslope <- lm(logXiXa ~ 0 + AXCR, weights = w, data = temp_sc)
-          
-          int_b6_sc <- 0; slope_b6_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
-          int_cast_sc <- 0; slope_cast_sc <- complete$coefficients[c("AXCR")]
-          
-          anv <- anova(oneslope, complete)
-          slope_pvalue_sc <- anv$`Pr(>F)`[2]
-          
-        }else{
-          complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, data = temp_sc)
-          oneslope <- lm(logXiXa ~ 0 + AXCR, data = temp_sc)
-          
-          int_b6_sc <- 0; slope_b6_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
-          int_cast_sc <- 0; slope_cast_sc <- complete$coefficients[c("AXCR")]
-          
-          anv <- anova(oneslope, complete)
-          slope_pvalue_sc <- anv$`Pr(>F)`[2]
-        }
-      }else{
-        int_cast_sc <- int_b6_sc <- slope_cast_sc <- slope_b6_sc <- slope_pvalue_sc <- NA
-      }
-      
-      # store results
-      model_fit <- rbind(model_fit, 
-                         data.frame(Gene = gene, 
-                                    int_b6 = int_b6, slope_b6 = slope_b6,
-                                    int_cast = int_cast, slope_cast = slope_cast,
-                                    slope_pvalue = slope_pvalue))
-      model_fit_sc <- rbind(model_fit_sc, 
-                            data.frame(Gene = gene, 
-                                       int_b6 = int_b6_sc, slope_b6 = slope_b6_sc,
-                                       int_cast = int_cast_sc, slope_cast = slope_cast_sc,
-                                       slope_pvalue = slope_pvalue_sc))
+      anv <- anova(oneslope, complete)
+      slope_pvalue <- anv$`Pr(>F)`[2]
+    }else{
+      int_cast <- int_b6 <- slope_cast <- slope_b6 <- slope_pvalue <- NA
     }
     
-  }else{
+    #single allele analysis
     
-    for(i in seq_len(length(allgenes))){
-      gene <- allgenes[i]
-      
-      temp <- data_filt[data_filt$Gene %in% gene,]
-      temp$w <- temp$sumXa_count + temp$sumXi_count
-      
-      temp_sc <- data_cell_fit[data_cell_fit$Gene %in% gene,]
-      temp_sc$w <- temp_sc$inactive_count + temp_sc$active_count
-      
-      # bin analysis
-      if(length(unique(temp$Xist))==2){
-        
-        if(weighted){
-          
-          complete <- lm(logXiXa ~ AXCR*Xist, weights = w, data = temp)
-          oneslope <- lm(logXiXa ~ AXCR, weights = w, data = temp)
-          
-          int_b6 <- complete$coefficients["(Intercept)"]
-          slope_b6 <- complete$coefficients["AXCR"] 
-          int_cast <- sum(complete$coefficients[c("(Intercept)", "XistCast_MA")])
-          slope_cast <- sum(complete$coefficients[c("AXCR", "AXCR:XistCast_MA")])
-          anv <- anova(oneslope, complete)
-          slope_pvalue <- anv$`Pr(>F)`[2]
-          
-        }else{
-          complete <- lm(logXiXa ~ AXCR*Xist, data = temp)
-          oneslope <- lm(logXiXa ~ AXCR, data = temp)
-          
-          int_b6 <- complete$coefficients["(Intercept)"]
-          slope_b6 <- complete$coefficients["AXCR"] 
-          int_cast <- sum(complete$coefficients[c("(Intercept)", "XistCast_MA")])
-          slope_cast <- sum(complete$coefficients[c("AXCR", "AXCR:XistCast_MA")])
-          anv <- anova(oneslope, complete)
-          slope_pvalue <- anv$`Pr(>F)`[2]
-        }
-      }else{
-        int_cast <- int_b6 <- slope_cast <- slope_b6 <- slope_pvalue <- NA
-      }
-      
-      #single allele analysis
-      
-      # test b6
-      if(gene %in% test_b6){
-        if(weighted){
-          fit <- lm(logXiXa ~ AXCR, weights = w, data = temp[temp$Xist == "BL6_MA",])
-        }else{
-          fit <- lm(logXiXa ~ AXCR, data = temp[temp$Xist == "BL6_MA",])
-        }
-        int_b6 <- fit$coefficient["(Intercept)"]; slope_b6 <- fit$coefficients["AXCR"]; bic_b6 <- BIC(fit)
-      }else{
-        int_b6 <- slope_b6 <- bic_b6 <- NA
-      }
-      
-      # test cast
-      if(gene %in% test_cast){
-        if(weighted){
-          fit <- lm(logXiXa ~ AXCR, weights = w, data = temp[temp$Xist == "Cast_MA",])
-        }else{
-          fit <- lm(logXiXa ~ AXCR, data = temp[temp$Xist == "Cast_MA",])
-        }
-        int_cast <- fit$coefficient["(Intercept)"]; slope_cast <- fit$coefficients["AXCR"]; bic_cast <- BIC(fit)
-      }else{
-        int_cast <- slope_cast <- bic_cast <- NA
-      }
-      
-      # single cell analysis
-      if(length(unique(temp_sc$Xist))==2){
-        
-        if(weighted){
-          
-          complete <- lm(logXiXa ~ AXCR*Xist, weights = w, data = temp_sc)
-          oneslope <- lm(logXiXa ~ AXCR, weights = w, data = temp_sc)
-          
-          int_b6_sc <- complete$coefficients["(Intercept)"]
-          slope_b6_sc <- complete$coefficients["AXCR"] 
-          int_cast_sc <- sum(complete$coefficients[c("(Intercept)", "XistCast_MA")])
-          slope_cast_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistCast_MA")])
-          anv <- anova(oneslope, complete)
-          slope_pvalue_sc <- anv$`Pr(>F)`[2]
-          
-        }else{
-          complete <- lm(logXiXa ~ AXCR*Xist, data = temp_sc)
-          oneslope <- lm(logXiXa ~ AXCR, data = temp_sc)
-          
-          int_b6_sc <- complete$coefficients["(Intercept)"]
-          slope_b6_sc <- complete$coefficients["AXCR"] 
-          int_cast_sc <- sum(complete$coefficients[c("(Intercept)", "XistCast_MA")])
-          slope_cast_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistCast_MA")])
-          anv <- anova(oneslope, complete)
-          slope_pvalue_sc <- anv$`Pr(>F)`[2]
-        }
-      }else{
-        int_cast_sc <- int_b6_sc <- slope_cast_sc <- slope_b6_sc <- slope_pvalue_sc <- NA
-      }
-      
-      # store results
-      model_fit <- rbind(model_fit, 
-                         data.frame(Gene = gene, 
-                                    int_b6 = int_b6, slope_b6 = slope_b6,
-                                    int_cast = int_cast, slope_cast = slope_cast,
-                                    slope_pvalue = slope_pvalue))
-      model_fit_sc <- rbind(model_fit_sc, 
-                            data.frame(Gene = gene, 
-                                       int_b6 = int_b6_sc, slope_b6 = slope_b6_sc,
-                                       int_cast = int_cast_sc, slope_cast = slope_cast_sc,
-                                       slope_pvalue = slope_pvalue_sc))
+    # test b6
+    if(gene %in% test_b6){
+      fit <- lm(logXiXa ~ 0 + AXCR, data = temp[temp$Xist == "BL6_MA",])
+      int_b6 <- 0; slope_b6 <- fit$coefficients["AXCR"]; bic_b6 <- BIC(fit)
+    }else{
+      int_b6 <- slope_b6 <- bic_b6 <- NA
     }
     
+    # test cast
+    if(gene %in% test_cast){
+      fit <- lm(logXiXa ~ 0 + AXCR, data = temp[temp$Xist == "Cast_MA",])
+      int_cast <- 0; slope_cast <- fit$coefficients["AXCR"]; bic_cast <- BIC(fit)
+    }else{
+      int_cast <- slope_cast <- bic_cast <- NA
+    }
+    
+    # single cell analysis
+    if(length(unique(temp_sc$Xist))==2){
+      complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, data = temp_sc)
+      oneslope <- lm(logXiXa ~ 0 + AXCR, data = temp_sc)
+      
+      int_b6_sc <- 0; slope_b6_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
+      int_cast_sc <- 0; slope_cast_sc <- complete$coefficients[c("AXCR")]
+      
+      anv <- anova(oneslope, complete)
+      slope_pvalue_sc <- anv$`Pr(>F)`[2]
+    }else{
+      int_cast_sc <- int_b6_sc <- slope_cast_sc <- slope_b6_sc <- slope_pvalue_sc <- NA
+    }
+    
+    # store results
+    model_fit <- rbind(model_fit, 
+                       data.frame(Gene = gene, 
+                                  int_b6 = int_b6, slope_b6 = slope_b6,
+                                  int_cast = int_cast, slope_cast = slope_cast,
+                                  slope_pvalue = slope_pvalue))
+    model_fit_sc <- rbind(model_fit_sc, 
+                          data.frame(Gene = gene, 
+                                     int_b6 = int_b6_sc, slope_b6 = slope_b6_sc,
+                                     int_cast = int_cast_sc, slope_cast = slope_cast_sc,
+                                     slope_pvalue = slope_pvalue_sc))
   }
   model_fit <- model_fit[order(model_fit$slope_pvalue, decreasing = FALSE),]
   model_fit$FDR <- p.adjust(model_fit$slope_pvalue, method = "BH")
@@ -484,13 +327,11 @@ mincount <- 25; nbins <- 10
 mincells <- 5; minbin <- 5; minsilencing_perc <- 10; mincount_cellfit_bin <- 5
 mincount_cellfit <- 5; mincell_cellfit <- 10
 XistUndTime <- "0hrs"; XistUnd_XCRthr_low <- 0.4; XistUnd_XCRthr_high <- 0.6
-equallysized <- TRUE; zeroIntercept <- TRUE; weighted <- FALSE
 
 binresults <- XiXa_metacell_ratio_final(x = df_sk, mincount = mincount, nbins = nbins, minbin = minbin, mincells = mincells,
                                         minsilencing_perc = minsilencing_perc, mincount_cellfit_bin = mincount_cellfit_bin,
-                                        mincount_cellfit = mincount_cellfit, mincell_cellfit = mincell_cellfit,
-                                        equallysized = equallysized, zeroIntercept = zeroIntercept, weighted = weighted)
-save(binresults, file = paste0(outpath, "classif_results_modified_eqsized_unweighted.RData"))
+                                        mincount_cellfit = mincount_cellfit, mincell_cellfit = mincell_cellfit)
+save(binresults, file = paste0(outpath, "diffsilencing_results.RData"))
 
 print("4.4) Load results for Eif1ax gene")
 
