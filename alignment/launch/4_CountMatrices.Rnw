@@ -159,7 +159,7 @@ for(i in 1:length(TimePoints)){
   counts <- cbind(counts, count_matrix)
 }
 save(counts, file = paste0(outpath, "UMICountMatrix.RData"))
-write.table(x = counts, file = paste0(outpath, "UMICountMatrix_temp.txt"), row.names = T, col.names = T)
+write.table(x = counts, file = paste0(outpath, "UMICountMatrix.txt"), row.names = T, col.names = T)
 @
 
 \subsection{Allele Specific (AS) gene expression}
