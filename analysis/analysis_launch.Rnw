@@ -205,7 +205,7 @@ end <- Sys.time()
 time <- end - start; time
 @
 
-\section{Figure 4: Chromosome-wide silencing dynamics}
+\section{Figure 6: Chromosome-wide silencing dynamics}
 <<>>=
 start <- Sys.time()
 source(paste0(scriptpath, "fig4_SilencingDynamics.R"))
@@ -213,7 +213,7 @@ end <- Sys.time()
 time <- end - start; time
 @
 
-\section{Figure 5: Allelic silencing dynamics}
+\section{Figure 7: Allelic silencing dynamics}
 <<>>=
 start <- Sys.time()
 source(paste0(scriptpath, "fig5_AllelicSilencingDynamics.R"))
@@ -221,7 +221,7 @@ end <- Sys.time()
 time <- end - start; time
 @
 
-\section{Figure 6: Experimental validation of differentially silenced genes}
+\section{Figure 8: Experimental validation of differentially silenced genes}
 <<>>=
 start <- Sys.time()
 source(paste0(scriptpath, "fig6_ExperimentalValidation.R"))
