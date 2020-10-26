@@ -32,16 +32,42 @@ breaklines=true
 
 \section{Define input/output paths}
 <<>>=
-# path <- "C:/Users/pacini/Pacini_paper-master/analysis/"
-path <- "C:/Users/pacini/Desktop/git_review/Pacini_paper/analysis/"
-
+path <- "C:/Users/pacini/Pacini_paper-master/analysis/"
 datapath <- paste0(path, "data/")
 scriptpath <- paste0(path, "scripts/")
 @
 
 \section{Load R libraries}
 <<>>=
-library(ggplot2); library(biomaRt); library(GEOquery); library(data.table); library(plyr); library(dplyr); library(scran); library(edgeR); library(monocle); library(grid); library(velocyto.R); library(matrixStats); library(pcaMethods); library(umap); library(reshape2); library(MAST); library(pheatmap); library(multidplyr); library(parallel); library(plyr); library(dplyr); library(lsr); library(doParallel); library(tidyr); library(ggrepel); library(ggalluvial); library(readxl); library(data.table); library(UpSetR); library(openxlsx)
+library(biomaRt)
+library(data.table)
+library(doParallel)
+library(dplyr)
+library(edgeR)
+library(GEOquery)
+library(ggalluvial)
+library(ggplot2)
+library(ggrepel)
+library(grid)
+library(gridExtra)
+library(lsr)
+library(MAST)
+library(matrixStats)
+library(monocle)
+library(multidplyr)
+library(openxlsx)
+library(parallel)
+library(pcaMethods)
+library(pheatmap)
+library(plyr)
+library(readxl)
+library(reshape2)
+library(R.utils)
+library(scran)
+library(tidyr)
+library(umap)
+library(UpSetR)
+library(velocyto.R)
 @
 
 \section{Define plot settings and function}
