@@ -1,19 +1,40 @@
-library(data.table); library(plyr); library(dplyr); library(scran); library(edgeR)
-
 print("1) Load gene and sample information")
 cell_features <- read.table(file = paste0(datapath, "Cell_Features.txt"), header = T, sep = "\t")
+bulk_features <- read.table(file = paste0(datapath, "BulkRNASeq_Features.txt"), header = T, sep = "\t")
 gene_features <- read.table(file = paste0(datapath, "Gene_Features.txt"), header = T, sep = "\t")
 
 print("2) Define DGE list object for notAS/AS, exonic/spliced/unspliced gene expression quantification")
 for(allele in c("", "_B6", "_Cast")){
   for(w in c("", "_Spliced", "_Unspliced")){
     x <- read.table(file = paste0(path, geoID, "/", geoID, allele, w, "_UMICountMatrix.txt.gz"), row.names = 1)
-    genes <- gene_features[match(rownames(x), gene_features$`Gene.Symbol`),]
+    genes <- gene_features[match(rownames(x), gene_features$Symbol),]
     colnames(genes) <- c("chromosome", "ensembl", "symbol", "strand")
     samples <- cell_features[match(colnames(x), cell_features$ID), ]
     colnames(samples) <- c("id", "day", "empty", "multiple", "dead_stain", "seqdepth", "uniquealigned")
     dge <- DGEList(counts = x, samples = samples, genes = genes)
     save(dge, file = paste0(datapath, "UF_DGE", allele, w, ".RData"))
+  }
+}
+
+print("2bis) Define DGE list object for Bulk RNA-Seq gene expression quantification")
+for(allele in c("", "_B6", "_Cast")){
+  for(CellLine in c("_TX1072", "_dXic")){
+    file <- paste0(path, geoID, "/", geoID, CellLine, allele, "_CountMatrix.txt.gz")
+    if(file.exists(file)){
+      x <- read.table(file = file, row.names = 1)
+      genes <- gene_features[match(rownames(x), gene_features$Symbol),]
+      colnames(genes) <- c("chromosome", "ensembl", "symbol", "strand")
+      samples <- bulk_features[match(colnames(x), bulk_features$ID), ]
+      colnames(samples) <- c("id", "cell_line", "dXic", "day", "replicate")
+      dge <- DGEList(counts = x, samples = samples, genes = genes)
+      if("Xist_5prime" %in% rownames(dge$genes)){
+        dge$genes["Xist_5prime",] <- dge$genes["Xist",]
+        dge$genes$symbol <- as.character(dge$genes$symbol)
+        dge$genes["Xist_5prime", "symbol"] <- "Xist_5prime"
+        dge$genes$symbol <- factor(dge$genes$symbol)
+      }
+      save(dge, file = paste0(datapath, "DGE", CellLine, allele, ".RData"))
+    }
   }
 }
 

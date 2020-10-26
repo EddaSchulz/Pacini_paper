@@ -49,7 +49,7 @@ g <- res %>%
   ylab(expression(Xist[Cast]*" ["*log[10]*"(UMI + 1)]")) + 
   guides(color=guide_legend(nrow=2, byrow=TRUE, override.aes = list(size=2))) + 
   theme(legend.position = "top")
-adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, savefile = paste0(outpath, "B_XistUMI.pdf"))
+adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, savefile = paste0(outpath, "A_XistUMI.pdf"))
 
 
 print("3) B: Xist classification over time - Area plot")
@@ -78,12 +78,39 @@ g <- ggplot(perc, aes(x=day, y=p, fill=Xist_classification)) +
   scale_x_continuous(expand = c(0,0)) +
   xlab("Time [days]") + ylab("Cells [%]") +
   guides(fill = guide_legend(title = "", override.aes = list(alpha = 1)))
-adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, savefile = paste0(outpath, "C_XistClassif_AreaPlot.pdf"))
+adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, savefile = paste0(outpath, "B_XistClassif_AreaPlot.pdf"))
 
 
-print("4) C: Xist AS CPM over time")
+
+print("4) C: FISH - Xist positive and BA cells")
 
 print("4.1) Load data")
+file <- paste0(datapath, "validation_experiments.txt")
+data <- data.frame(read.table(file = file, header = T, sep = "\t"))
+data <- data[(data$Experiment %in% "FISH")&(data$CellLine %in% "TX1072"),]
+data$Xist <- factor(revalue(factor(data$Variable), replace = c("XistPos" = "Xist+", "XistBi" = "BA")), 
+                    levels = c("Xist+", "BA"))
+
+print("4.2) Plot")
+cols <- c("#6F72B5", "#fa9fb5")
+g <- data  %>%
+  ggplot(aes(x = factor(Day), y = Value, color = Xist, fill = Xist)) +
+  theme_bw() + theme1 +  
+  geom_jitter(position=position_jitterdodge(jitter.width = .1, dodge.width = 0.5),
+              size = small_scattersize, show.legend = FALSE, alpha = 1/2) +
+  stat_summary(fun=mean, aes(ymin=..y.., ymax=..y..), geom='errorbar', width=0.5,
+               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.5), size = linesize*2) +
+  scale_color_manual(values = cols) +
+  labs(x = "Time [days]", 
+       y = "Cells [%]",
+       color = "") +
+  scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 100))
+adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(outpath, "C_FISH_percentage.pdf"))
+
+
+print("5) D: Xist AS CPM over time")
+
+print("5.1) Load data")
 
 res_xistplus <- res[res$Xist_classification %in% c("Xist-MA (Xi=B6)", "Xist-MA (Xi=Cast)"),]
 ncells <- ddply(res_xistplus, .variables = .(day), summarize, 
@@ -95,13 +122,16 @@ wmwtest <- ddply(res_xistplus[res_xistplus$day != 0,], .variables = .(day), summ
                  pvalue = wilcox.test(x = log10(Xist_b6_cpm[Xist_classification == "Xist-MA (Xi=B6)"]+1), 
                                       y = log10(Xist_cast_cpm[Xist_classification == "Xist-MA (Xi=Cast)"]+1), 
                                       paired = FALSE)$p.value)
+wmwtest$p <- ifelse(wmwtest$pvalue >= 0.01, paste0("p = ", round(wmwtest$pvalue, digits = 2)), 
+                    ifelse(wmwtest$pvalue >= 0.001, paste0("p = ", round(wmwtest$pvalue, digits = 3)),
+                           "p < 0.001"))
 
 temp <- res_xistplus[res_xistplus$day != 0, c("day", "Xist_classification", "Xist_b6_cpm", "Xist_cast_cpm")]
 temp$Xist <- NA
 temp$Xist[temp$Xist_classification %in% "Xist-MA (Xi=B6)"] <- log10(temp$Xist_b6_cpm[temp$Xist_classification %in% "Xist-MA (Xi=B6)"]+1)
 temp$Xist[temp$Xist_classification %in% "Xist-MA (Xi=Cast)"] <- log10(temp$Xist_cast_cpm[temp$Xist_classification %in% "Xist-MA (Xi=Cast)"]+1)
 
-print("4.2) Plot")
+print("5.2) Plot")
 
 g <- temp %>% 
   ggplot() +
@@ -110,7 +140,8 @@ g <- temp %>%
   geom_violin(aes(x = factor(day), y = Xist, colour = Xist_classification), alpha = 0.5, draw_quantiles = c(0.5), size = violin_box_size, show.legend = FALSE) + 
   geom_jitter(aes(x = factor(day), y = Xist, colour = Xist_classification), alpha = 0.5, size = scattersize,
               position=position_jitterdodge(jitter.width = .2, dodge.width = 0.9), shape = 21) +
-  geom_text(data = wmwtest[!wmwtest$day %in% "0",], aes(x = factor(day), y = 4.75, label = round(pvalue, digits = 3)), size = geomtext_size, angle = 0) +
+  geom_text(data = wmwtest[!wmwtest$day %in% "0",], aes(x = factor(day), y = 4.75, label = p), 
+            size = geomtext_size, angle = 0) +
   scale_color_manual(values = color_alleles) +
   labs(x = "Time [days]", y = expression("Xist CPM + 1 ["* log[10]*"]"), color = "") +
   guides(color = guide_legend(override.aes = list(size = 1, shape = 20, alpha = 1)))

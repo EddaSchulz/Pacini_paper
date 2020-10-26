@@ -32,9 +32,16 @@ breaklines=true
 
 \section{Define input/output paths}
 <<>>=
-path <- "C:/Users/pacini/Pacini_paper-master/analysis/"
+# path <- "C:/Users/pacini/Pacini_paper-master/analysis/"
+path <- "C:/Users/pacini/Desktop/git_review/Pacini_paper/analysis/"
+
 datapath <- paste0(path, "data/")
 scriptpath <- paste0(path, "scripts/")
+@
+
+\section{Load R libraries}
+<<>>=
+library(ggplot2); library(biomaRt); library(GEOquery); library(data.table); library(plyr); library(dplyr); library(scran); library(edgeR); library(monocle); library(grid); library(velocyto.R); library(matrixStats); library(pcaMethods); library(umap); library(reshape2); library(MAST); library(pheatmap); library(multidplyr); library(parallel); library(plyr); library(dplyr); library(lsr); library(doParallel); library(tidyr); library(ggrepel); library(ggalluvial); library(readxl); library(data.table); library(UpSetR); library(openxlsx)
 @
 
 \section{Define plot settings and function}
@@ -60,7 +67,6 @@ names(color_alleles) <- c("Undetected", "Low",
                           "Xist-MA (Xi=B6)", "Xist-MA (Xi=Cast)")
 comparison_colors <- c("#e7298a", "black")
 
-library(ggplot2)
 theme1 <- theme(axis.text.x = element_text(size = textsize), 
                 axis.text.y = element_text(size = textsize),
                 axis.title.x = element_text(size = titlesize), 
@@ -69,8 +75,6 @@ theme1 <- theme(axis.text.x = element_text(size = textsize),
                 legend.title = element_text(size = textsize), 
                 legend.text = element_text(size = textsize),
                 legend.key.size = unit(1,"line"),
-                axis.line.x = element_line(colour = "black", size = outline_size), 
-                axis.line.y = element_line(colour = "black", size = outline_size), 
                 panel.grid.major = element_blank(), 
                 panel.grid.minor = element_blank(), 
                 strip.text.x = element_text(size = textsize), 
@@ -151,10 +155,26 @@ end <- Sys.time()
 time <- end - start; time
 @
 
-\section{Figure 3: Allele specific Xist analysis}
+\section{Figure 3: Identification of putative Xist regulators}
 <<>>=
 start <- Sys.time()
 source(paste0(scriptpath, "fig3_XistRegulators.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Figure 4: Identification of putative X-chromosome regulators}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "fig4_XchrChangeRegulators.R"))
+end <- Sys.time()
+time <- end - start; time
+@
+
+\section{Figure 5: Xist and X-chromosome putative regulators}
+<<>>=
+start <- Sys.time()
+source(paste0(scriptpath, "fig5_Concordance.R"))
 end <- Sys.time()
 time <- end - start; time
 @

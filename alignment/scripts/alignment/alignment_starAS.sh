@@ -47,7 +47,7 @@ echo Splitting alignment into parental genomes...
 
 alignment=$outpath$FILE'/Aligned.sortedByCoord.out.bam'
 
-$softwpath'/SNPsplit_v0.3.2/SNPsplit --snp_file $snp_file \
+$softwpath'/SNPsplit_v0.3.2/SNPsplit' --snp_file $snp_file \
 	     --conflicting \
 	     $alignment
 

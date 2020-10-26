@@ -1,5 +1,3 @@
-library(biomaRt); library(GEOquery)
-
 print("1) Download gene annotation")
 mart <- useMart("ensembl")
 mart <- useDataset("mmusculus_gene_ensembl", mart = mart)
@@ -12,5 +10,5 @@ save(bm, file = paste0(datapath, "biomart.RData"))
 print("2) Download count matrices from GEO")
 geoID <- "GSE151009"
 files <- getGEOSuppFiles(GEO = geoID, baseDir = path, fetch_files = FALSE)
-subfiles <- as.list(as.character(files$fname[grepl(x = files$fname, pattern = "UMICountMatrix")]))
+subfiles <- as.list(as.character(files$fname[grepl(x = files$fname, pattern = "CountMatrix")]))
 lapply(X = subfiles, FUN = function(x) getGEOSuppFiles(GEO = geoID, baseDir = path, filter_regex = x))

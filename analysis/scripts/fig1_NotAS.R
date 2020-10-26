@@ -1,5 +1,3 @@
-library(monocle); library(grid); library(velocyto.R); library(matrixStats); library(pcaMethods); library(umap); library(reshape2)
-
 print("1) Define output path")
 outpath <- paste0(path, "output/fig1_NotAS/"); dir.create(path = outpath, showWarnings = F, recursive = T)
 
@@ -219,7 +217,7 @@ g <- nXistUnd %>%
   geom_text(aes(label=label),position="stack", hjust = -0.2, color = "black", size = geomtext_size)+
   coord_flip() + 
   scale_y_continuous(limits = c(0, 130), breaks = seq(0,100,50))
-adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(outpath, "E_XistPlus_barplot.pdf"))
+adjust_size(g = g, panel_width_cm = 1.5, panel_height_cm = 3, savefile = paste0(outpath, "E_XistPlus_barplot.pdf"))
 
 # xist UMI and CPM - violin plot
 df_melt$day <- factor(df_melt$day, levels = rev(levels(factor(df_melt$day))))
@@ -231,7 +229,7 @@ g <- df_melt %>%
   facet_grid(.~variable, scales = "free_x") +
   labs(x="Time [days]", y = expression("Xist ["*log[10]*"(value + 1)]")) + 
   coord_flip()
-adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(outpath, "E_XistExpression_violin.pdf"))
+adjust_size(g = g, panel_width_cm = 1.5, panel_height_cm = 3, savefile = paste0(outpath, "E_XistExpression_violin.pdf"))
 
 
 
@@ -277,7 +275,7 @@ g <- total[!total$Xist %in% "Xist+ cells [UMI<=5]",] %>%
   scale_y_continuous(breaks = seq(0.5, 2, by = 0.5), limits = c(0.25, 2.2)) + 
   geom_boxplot(aes(x = day, y = x2a, color = Xist), outlier.shape = NA, size = violin_box_size) + 
   geom_jitter(aes(x = day, y = x2a, color = Xist), fill = "black",
-              alpha = 1/4, position=position_jitterdodge(jitter.width = .25, dodge.width = 0.75), 
+              alpha = 1/10, position=position_jitterdodge(jitter.width = .25, dodge.width = 0.75), 
               size = outliersize, show.legend = FALSE) +
   scale_color_manual(values = colors) + 
   geom_text(summ_cell[!summ_cell$Xist %in% "Xist+ cells [UMI<=5]",],
@@ -285,7 +283,7 @@ g <- total[!total$Xist %in% "Xist+ cells [UMI<=5]",] %>%
             position=position_dodge(.75), angle = 90, alpha = 1, size = geomtext_size, hjust = -0.5) +
   coord_cartesian(clip = "off") +
   labs(x = "Time [days]", y = "X:A ratio", fill = "")
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "F_X2A.pdf"))
+adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, savefile = paste0(outpath, "F_X2A.pdf"))
 
 
 print("5.3) Compare d4 and d0 cells using an unpaired Wilcoxon test")
@@ -293,3 +291,28 @@ wilcox.test(x = total$x2a[(total$day == 0)],
             y = total$x2a[(total$day == 4)&(total$xist_detection == "Xist+ cells")])
 wilcox.test(x = total$x2a[(total$day == 0)],
             y = total$x2a[(total$day == 4)&(total$xist_detection == "Xist- cells")])
+
+
+print("6) G: UMAP colored by X/A ratio for Xist-negative and Xist-positive cells")
+
+print("6.1) Load data")
+umap_ext$id <- rownames(umap_ext)
+m <- match(umap_ext$id, x2a$id)
+var <- c("day", "Xist_UMI", "xist_detection", "x2a")
+umap <- data.frame(umap_ext, x2a[m, var])
+save(umap, file = paste0(outpath, "umap.RData"))
+
+print("6.2) Plot")
+temp <- umap[!umap$xist_detection %in% "Xist+ cells [UMI<=5]",]
+mid <- median(temp$x2a[temp$day == 0]); print(paste0("The median X:A ratio for d0 cells is ", round(mid, digits = 3)))
+g <- temp %>%
+  ggplot() + 
+  theme_bw() + theme1 +
+  facet_grid(.~xist_detection) +
+  geom_point(aes(x = umap1, y = umap2, color = x2a), size = outliersize, shape = 20) + 
+  scale_color_gradient2(midpoint = mid, low = "blue", mid = "grey", high = "red") +
+  labs(x="UMAP 1", y = "UMAP 2", color = "X:A ratio") + 
+  guides(color = guide_colourbar(barwidth = 0.7, barheight = 4)) + 
+  theme(legend.position = "right",
+        strip.text.y = element_text(angle = 0))
+adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = 2.5, savefile = paste0(outpath, "G_UMAP_X2A.pdf"))

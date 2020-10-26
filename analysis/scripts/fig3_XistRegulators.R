@@ -1,5 +1,3 @@
-library(MAST); library(pheatmap); library(multidplyr)
-
 print("1) Define output path")
 outpath <- paste0(path, "output/fig3_deXistHighLow/"); dir.create(path = outpath, recursive = T, showWarnings = F)
 
@@ -49,7 +47,6 @@ print("3.1) Define contrast and launch DE analyses")
 
 # define contrast(s)
 contrasts <- list(XistHigh_XistLow = c("Xist_kmeans_class", list(5:7, 1:3)))
-depath <- outpath
 min_sample_test <- 10; de_threshold <- 5e-2; days <- 0:4
 
 # launch MAST analysis for each contrast
@@ -57,8 +54,8 @@ for(cont in 1:length(contrasts)){
   comparison <- names(contrasts)[cont]
   variable <- unlist(contrasts[[cont]][1]); variable_levels <- contrasts[[cont]][2:3]
   
-  if(!dir.exists(paste0(depath, comparison))){
-    dir.create(path = paste0(depath, comparison), showWarnings = FALSE, recursive = TRUE)
+  if(!dir.exists(paste0(outpath, comparison))){
+    dir.create(path = paste0(outpath, comparison), showWarnings = FALSE, recursive = TRUE)
     
     for (i in 1:length(days)) {
       time <- days[i]; cat('Processing day', time, '..')
@@ -74,15 +71,15 @@ for(cont in 1:length(contrasts)){
       grp <- factor(grp, levels = c("control", "case"))
       
       # store the number of cases and controls per time point
-      if(!file.exists(paste0(depath, comparison, "/Nsamples_perTime.txt"))){
+      if(!file.exists(paste0(outpath, comparison, "/Nsamples_perTime.txt"))){
         m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
         colnames(m) <- c("Day", c(strsplit2(comparison, split = "\\_")))
         write.table(m, quote =FALSE, row.names = FALSE, col.names = TRUE, 
-                    file = paste0(depath, comparison, "/Nsamples_perTime.txt"))
+                    file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
       }else{
         m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
         write.table(m, quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE,
-                    file = paste0(depath, comparison, "/Nsamples_perTime.txt"))
+                    file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
       }
       
       if(min(table(grp)) >= min_sample_test){
@@ -99,13 +96,14 @@ for(cont in 1:length(contrasts)){
                       summaryDt[contrast=='grpcase' & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], by='primerid')
         mast$AveCPM <- rowMeans(cpm)
         mast$fdr <- p.adjust(mast$`Pr(>Chisq)`, method = "BH")
-        mast <- data.frame(bm[match(mast$primerid, bm$ensembl_gene_id), c("chromosome_name", "mgi_symbol", "entrezgene_id", "ensembl_gene_id")], mast)
+        mast <- data.frame(gene_features[match(mast$primerid, gene_features$Ensembl.ID), c("Chromosome", "Gene.Symbol", "Ensembl.ID")], mast)
+        colnames(mast) <- c("chromosome_name", "mgi_symbol", "ensembl_gene_id", "primerid", "Pr..Chisq.", "coef", "ci.hi", "ci.lo", "AveCPM", "fdr")
         mast <- mast[order(mast$fdr, decreasing = FALSE),]
         
         # store results
-        save(mast, file = paste0(depath, comparison, "/", time, ".RData"))
-        save(zlmdata, file = paste0(depath, comparison, "/zlm_", time, ".RData"))
-        save(sca, file = paste0(depath, comparison, "/sca_", time, ".RData"))
+        save(mast, file = paste0(outpath, comparison, "/", time, ".RData"))
+        save(zlmdata, file = paste0(outpath, comparison, "/zlm_", time, ".RData"))
+        save(sca, file = paste0(outpath, comparison, "/sca_", time, ".RData"))
       }
     }
   }
@@ -120,13 +118,13 @@ for (i in 1:length(days)) {
     comparison <- names(contrasts)[cont]
     
     # de results
-    file <- paste0(depath, comparison, "/", time, ".RData")
+    file <- paste0(outpath, comparison, "/", time, ".RData")
     if(file.exists(file)){
       load(file); all <- mast; all_de <- rbind(all_de, data.frame(test = comparison, day = time, all))
     }
   }
 }
-save(all_de, file = paste0(depath, "ALLresults.RData"))
+save(all_de, file = paste0(outpath, "ALLresults.RData"))
 
 print("3.2) Load MAST results excluding Xist from DE gene list")
 all_de <- all_de[!all_de$mgi_symbol %in% "Xist",]
@@ -170,7 +168,7 @@ print("4) C: Represent DE genes through heatmap")
 
 print("4.1) Define plotting function")
 plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC = 2,
-                         depath, is_log10CPMo1 = TRUE, abslog2FC_break = 7,
+                         outpath, is_log10CPMo1 = TRUE, abslog2FC_break = 7,
                          colorPalette = c("black", "gold", "red"), paletteLength = 500,
                          cellheight = 15, fontsize_col = 15, fontsize_row = 15, width = 15, cellwidth = 50, fontsize = 15,
                          excludeFC = "|log2FC|<1", orderByXist = TRUE){
@@ -196,7 +194,7 @@ plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC 
     sig <- sig[order(sig$log2FC, decreasing = TRUE),]
     
     # plot results for each time point --> Per cell heatmap
-    heat_path <- paste0(depath, comparison, "/Heatmap/PerCell/")
+    heat_path <- paste0(outpath, comparison, "/Heatmap/PerCell/")
     if(nrow(sig)>1){
       for(d in days){
         dir.create(heat_path, showWarnings = FALSE, recursive = TRUE)
@@ -288,10 +286,10 @@ minFDR <- de_threshold
 minAbsFC <- 1.5
 is_log10CPMo1 <- TRUE
 abslog2FC_break <- 7
-load(paste0(depath, "ALLresults.RData"))
+load(paste0(outpath, "ALLresults.RData"))
 
 plot_heatmap(all_de = all_de, contrasts = contrasts, comparison = comp, minFDR = minFDR, minAbsFC = minAbsFC, 
-             is_log10CPMo1 = is_log10CPMo1, abslog2FC_break = abslog2FC_break, depath = outpath,
+             is_log10CPMo1 = is_log10CPMo1, abslog2FC_break = abslog2FC_break, outpath = outpath,
              cellheight = 6, fontsize_col = 6, fontsize_row = 6, width = 10, cellwidth = .5, fontsize = 6, orderByXist = TRUE)
 
 print("4.3) Move and rename plots in figures folder")
@@ -317,7 +315,7 @@ x <- data.frame(day = rep(dge$samples$day, each = nrow(dge)),
 
 ncores <- min(c(detectCores(), 10))
 cluster <- new_cluster(ncores)
-sprmcor <- x %>% 
+sprmcor <- x[x$day != 0,] %>% 
   dplyr::group_by(day, Gene) %>% 
   partition(cluster) %>%
   dplyr::summarise(Chr = unique(Chr),
@@ -396,7 +394,7 @@ ph <- length(pos_genes)*0.3
 temp <- sprmcor[sprmcor$Gene %in% pos_genes,]; temp$Gene <- factor(temp$Gene, levels = rev(pos_genes))
 temp$significant <- temp$fdr_Xist<0.05
 
-g <- temp[temp$day != 0,] %>% 
+g <- temp %>% 
   ggplot() + 
   theme_bw() + theme1 +
   geom_point(aes(x = factor(day), y = Gene, fill = spr_Xist, size = abs(spr_Xist)), pch=22, stroke = 0) +
