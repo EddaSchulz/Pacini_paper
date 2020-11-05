@@ -33,6 +33,7 @@ breaklines=true
 \section{Define input/output paths}
 <<>>=
 path <- "C:/Users/pacini/Pacini_paper-master/analysis/"
+path <- "C:/Users/pacini/Desktop/git_final/Pacini_paper/analysis/"
 datapath <- paste0(path, "data/")
 scriptpath <- paste0(path, "scripts/")
 @

@@ -108,7 +108,7 @@ g <- data  %>%
 adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(outpath, "C_FISH_percentage.pdf"))
 
 
-print("5) D: Xist AS CPM over time")
+print("5) D: Xist AS CPM over time - Xist.MA cells")
 
 print("5.1) Load data")
 
@@ -146,3 +146,41 @@ g <- temp %>%
   labs(x = "Time [days]", y = expression("Xist CPM + 1 ["* log[10]*"]"), color = "") +
   guides(color = guide_legend(override.aes = list(size = 1, shape = 20, alpha = 1)))
 adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "D_XistMA_B6vCast.pdf"))
+
+
+print("6) E: Xist AS CPM over time")
+
+print("6.1) Load data")
+
+res_xistplus <- res
+wmwtest <- ddply(res_xistplus, .variables = .(day), summarize, 
+                 pvalue = wilcox.test(x = log10(Xist_b6_cpm+1), 
+                                      y = log10(Xist_cast_cpm+1), 
+                                      paired = TRUE)$p.value)
+wmwtest$p <- ifelse(wmwtest$pvalue >= 0.01, paste0("p = ", round(wmwtest$pvalue, digits = 2)), 
+                    ifelse(wmwtest$pvalue >= 0.001, paste0("p = ", round(wmwtest$pvalue, digits = 3)),
+                           "p < 0.001"))
+temp <- res_xistplus[, c("id", "day", "Xist_classification", "Xist_b6_cpm", "Xist_cast_cpm")]
+temp_melt <- melt(temp, id.vars = c("id", "day", "Xist_classification"), 
+                  measure.vars = c("Xist_b6_cpm", "Xist_cast_cpm"), variable.name = "Xist")
+temp_melt$allele <- ifelse(temp_melt$Xist == "Xist_b6_cpm", "B6", "Cast")
+temp_melt$logcpm <- log10(temp_melt$value + 1)
+
+
+print("6.2) Plot")
+
+g <- temp_melt[temp_melt$day>0,] %>% 
+  ggplot() +
+  theme_bw() +  theme1 + 
+  scale_y_continuous(breaks = seq(0, 5, by = 1)) +
+  geom_violin(aes(x = factor(day), y = logcpm, colour = factor(allele)), 
+              alpha = 0.5, draw_quantiles = c(0.5), size = violin_box_size, show.legend = FALSE) + 
+  geom_jitter(aes(x = factor(day), y = logcpm, colour = allele), 
+              alpha = 0.25, size = scattersize,
+              position=position_jitterdodge(jitter.width = .05, dodge.width = 0.9), shape = 20) +
+  geom_text(data = wmwtest[!wmwtest$day %in% "0",], aes(x = factor(day), y = 4.75, label = p), 
+            size = geomtext_size, angle = 0) +
+  scale_color_manual(values = c("#1b9e77", "#d95f02")) +
+  labs(x = "Time [days]", y = expression("Xist CPM + 1 ["* log[10]*"]"), color = "") +
+  guides(color = guide_legend(override.aes = list(size = 1, shape = 20, alpha = 1)))
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "E_B6vCast.pdf"))

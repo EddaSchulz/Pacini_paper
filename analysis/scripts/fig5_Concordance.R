@@ -67,7 +67,7 @@ xist_cor <- xist_cor[!((xist_cor$chromosome_name %in% "X")&(xist_cor$correlation
 xchr_cor$direction <- ifelse(xchr_cor$correlation>0, "Up-regulated", "Down-regulated") 
 results <- rbind(results,
                  data.frame(analysis = "Correlation", test = "Xchr",
-                            xist_cor[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr")]))
+                            xchr_cor[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr")]))
 
 
 print("2.2) Compute number of significant hits per gene and day: FDR<0.05 & nhits>3")
@@ -132,6 +132,6 @@ pheatmap(x,
          cellwidth = cellwidth, cellheight = cellheight,
          width = width, height = height,
          fontsize_col = fontsize_col, fontsize_row = fontsize_row, fontsize = fontsize,
-         gaps_col = 4, gaps_row = 33, border_color = FALSE,
+         gaps_col = 4, gaps_row = 15, border_color = FALSE,
          display_numbers = significant_labels, number_color = "white",
          filename = paste0(outpath, "A_XistXchr_Concordance.pdf"))
