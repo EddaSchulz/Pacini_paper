@@ -1950,7 +1950,7 @@ ensembl <- gene_features$Ensembl.ID[match(genes, gene_features$Gene.Symbol)]
 chromosome <- gene_features$Chromosome[match(genes, gene_features$Gene.Symbol)]
 load(paste0(datapath, "DGE.RData")); dge$cpm <- t(t(dge$counts)/(dge$samples$eff_libsize_notX))*1e6; cpm <- dge$cpm[match(ensembl, dge$genes$ensembl),]
 
-for(d in 0:4){
+for(d in 1:4){
   temp <- res[res$day %in% d,]
   x1 <- temp[temp$test %in% "Xist-DE",]
   x2 <- temp[temp$test %in% "Xist-COR",]
@@ -1975,7 +1975,7 @@ for(d in 0:4){
                    "Coefficient [Spearman: Gene CPM vs Xist CPM]", "FDR [Spearman: Gene CPM vs Xist CPM]",
                    "log2FC [MAST: Xchr.Change High vs Low]", "FDR [MAST: Xchr.Change High vs Low]",
                    "Coefficient [Pearson: Gene CPM vs Xchr.Change]", "FDR [Pearson: Gene CPM vs Xchr.Change]")
-  if(d==0){
+  if(d==1){
     wb <- createWorkbook()
   }
   addWorksheet(wb, sheetName = paste0("Day ", d))

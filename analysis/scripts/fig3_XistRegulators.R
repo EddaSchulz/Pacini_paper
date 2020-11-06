@@ -47,7 +47,7 @@ print("3.1) Define contrast and launch DE analyses")
 
 # define contrast(s)
 contrasts <- list(XistHigh_XistLow = c("Xist_kmeans_class", list(5:7, 1:3)))
-min_sample_test <- 10; de_threshold <- 5e-2; days <- 0:4
+min_sample_test <- 10; de_threshold <- 5e-2; days <- 1:4
 
 # launch MAST analysis for each contrast
 for(cont in 1:length(contrasts)){
@@ -363,8 +363,10 @@ g <- de_barplot_ext[de_barplot_ext$day != 0,] %>%
   guides(fill = guide_legend(title="", nrow=2, byrow=TRUE), alpha = 'none')
 adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(outpath, "D_DE_barplot_corrXist.pdf"))
 
-
 print("6) E/F: Heatmap - positive/negative regulators over time at day 1/2")
+
+fdr_threshold <- 0.05
+maxn <- 20
 
 print("6.1) Load data and remove Xist")
 sub <- sprmcor[(sprmcor$day %in% c(1, 2)),]
@@ -376,23 +378,25 @@ sub$gene_biotype <- bm$gene_biotype[match(sub$Gene, bm$mgi_symbol)]
 sub <- sub[!grepl(x = sub$gene_biotype, pattern = "pseudogene"),]
 
 # select genes showing significant correlation to Xist expression at day 1/2
-sub_sig <- sub[(sub$fdr_Xist<0.05)&(!is.na(sub$fdr_Xist)),]
-summary(abs(sub_sig$spr_Xist[sub_sig$day == 1]))
-summary(abs(sub_sig$spr_Xist[sub_sig$day == 2]))
-summary(abs(sub_sig$spr_Xist))
+sub_sig <- sub[(sub$fdr_Xist <= fdr_threshold)&(!is.na(sub$fdr_Xist)),]
 
-print("6.3) Select genes with absolute correlation greater than 0.25")
-sub_sig_high <- sub_sig[abs(sub_sig$spr_Xist)>0.25,]
-table(sub_sig_high$spr_Xist>0)
-positive <- sub_sig_high[sub_sig_high$spr_Xist>0,] %>% dplyr::arrange(-abs(spr_Xist))
+print("6.3) Select top 20 genes based on absolute correlation coefficient and significance")
+positive <- sub_sig[sub_sig$spr_Xist > 0,] %>% dplyr::arrange(-abs(spr_Xist))
 pos_genes <- unique(as.character(positive$Gene))
-negative <- sub_sig_high[(sub_sig_high$spr_Xist<0)&(!sub_sig_high$Chr %in% "X"),] %>% dplyr::arrange(-abs(spr_Xist)) # exclude X-linked genes for negative Xist regulators
+
+# remove X-linked genes with negative correlation to Xist
+negative <- sub_sig[(sub_sig$spr_Xist<0)&(!sub_sig$Chr %in% "X"),] %>% dplyr::arrange(-abs(spr_Xist))
 neg_genes <- unique(as.character(negative$Gene))
 
-print("6.4) E: Plot results through heatmap - positive Xist regulators")
+if(length(pos_genes)>maxn) pos_genes <- pos_genes[seq_len(maxn)]
+if(length(neg_genes)>maxn) neg_genes <- neg_genes[seq_len(maxn)]
+
+print("6.4) Plot results through heatmap")
+
+# positive regulators
 ph <- length(pos_genes)*0.3
 temp <- sprmcor[sprmcor$Gene %in% pos_genes,]; temp$Gene <- factor(temp$Gene, levels = rev(pos_genes))
-temp$significant <- temp$fdr_Xist<0.05
+temp$significant <- temp$fdr_Xist <= fdr_threshold
 
 g <- temp %>% 
   ggplot() + 
@@ -402,15 +406,20 @@ g <- temp %>%
   scale_fill_gradient2(low="blue", mid="white", high="red", 
                        midpoint=0, breaks=seq(-0.5, 0.5, .25), limits=c(-0.51,0.51)) + 
   scale_radius(breaks = seq(0, 0.5, by = 0.25), limits = c(0, 0.5), range = c(0.1, 4)) +
-  labs(x = "Time [days]", y = "", fill = "Spearman's correlation to Xist CPM", size = "Absolute correlation")
-adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, savefile = paste0(outpath, "E_corrXist_PositiveRegulators.pdf"))
+  labs(x = "Time [days]", y = "", 
+       fill = "Spearman's correlation to Xist CPM", 
+       size = "Absolute correlation",
+       title = "Positively correlated genes")
+adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, 
+            savefile = paste0(outpath, "E_corrXist_PositiveRegulators.pdf"), 
+            height = 3, width = 5)
 
-print("6.5) F: Plot results through heatmap - negative autosomal Xist regulators")
+# negative regulators
 ph <- length(neg_genes)*0.3
 temp <- sprmcor[sprmcor$Gene %in% neg_genes,]; temp$Gene <- factor(temp$Gene, levels = rev(neg_genes))
-temp$significant <- temp$fdr_Xist<0.05
+temp$significant <- temp$fdr_Xist <= fdr_threshold
 
-g <- temp[temp$day != 0,] %>% 
+g <- temp %>% 
   ggplot() + 
   theme_bw() + theme1 +
   geom_point(aes(x = factor(day), y = Gene, fill = spr_Xist, size = abs(spr_Xist)), pch=22, stroke = 0) +
@@ -418,5 +427,10 @@ g <- temp[temp$day != 0,] %>%
   scale_fill_gradient2(low="blue", mid="white", high="red", 
                        midpoint=0, breaks=seq(-0.5, 0.5, .25), limits=c(-0.51,0.51)) + 
   scale_radius(breaks = seq(0, 0.5, by = 0.25), limits = c(0, 0.5), range = c(0.1, 4)) +
-  labs(x = "Time [days]", y = "", fill = "Spearman's correlation\nrho(Xist CPM, Gene CPM)", size = "Absolute correlation")
-adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, savefile = paste0(outpath, "F_corrXist_NegativeRegulators.pdf"))
+  labs(x = "Time [days]", y = "", 
+       fill = "Spearman's correlation to Xist CPM", 
+       size = "Absolute correlation",
+       title = "Negatively correlated genes")
+adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, 
+            savefile = paste0(outpath, "F_corrXist_NegativeRegulators.pdf"), 
+            height = 3, width = 5)

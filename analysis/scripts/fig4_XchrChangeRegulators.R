@@ -82,7 +82,7 @@ print("3.1) Define contrast and launch DE analyses")
 
 # define contrast(s)
 contrasts <- list(HighXchrChange_LowXchrChange = c("km_XchrChange", list("high", "low")))
-min_sample_test <- 10; de_threshold <- 5e-2; days <- 0:4
+min_sample_test <- 10; de_threshold <- 5e-2; days <- 1:4
 
 # launch MAST analysis for each contrast
 for(cont in 1:length(contrasts)){
@@ -196,7 +196,7 @@ g <- de_barplot_ext %>%
   scale_y_continuous(limits = c(0, 250), breaks = seq(0, 200, by = 50)) + 
   ylab("# Differentially expressed genes") + xlab("Time [days]") +
   guides(fill = guide_legend(title="Higher expression in:", nrow=2, byrow=TRUE), alpha = 'none')
-adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = 3, savefile = paste0(outpath, "B_DE_barplot.pdf"))
+adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(outpath, "B_DE_barplot.pdf"))
 
 
 print("4) C: Represent DE genes through heatmap")
@@ -206,7 +206,7 @@ plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC 
                          outpath, is_log10CPMo1 = TRUE, abslog2FC_break = 7,
                          colorPalette = c("black", "gold", "red"), paletteLength = 500,
                          cellheight = 15, fontsize_col = 15, fontsize_row = 15, width = 15, cellwidth = 50, fontsize = 15,
-                         excludeFC = "|log2FC|<1", orderByXist = TRUE, orderbyFDR = TRUE){
+                         excludeFC = "|log2FC|<1", orderByXist = TRUE, orderbyFDR = FALSE){
   
   # define heatmap coloring
   myColor <- c(colorRampPalette(colorPalette)(paletteLength))
@@ -353,10 +353,10 @@ plot_heatmap(all_de = all_de, contrasts = contrasts, comparison = comp, minFDR =
 
 print("4.3) Move and rename plots in figures folder")
 f <- paste0(outpath, names(contrasts), "/Heatmap/PerCell/", 
-            c("day1_Avelog10CPM_0.01_all_byFDR.pdf", "day2_Avelog10CPM_0.01_all_byFDR.pdf"))
+            c("day1_Avelog10CPM_0.01_all_byFC.pdf", "day2_Avelog10CPM_0.01_all_byFC.pdf"))
 file.copy(from = f, to = outpath)
-f1 <- paste0(outpath, c("day1_Avelog10CPM_0.01_all_byFDR.pdf", "day2_Avelog10CPM_0.01_all_byFDR.pdf"))
-f2 <- paste0(outpath, c("C_Heatmap_24h_byFDR.pdf", "C_Heatmap_48h_byFDR.pdf"))
+f1 <- paste0(outpath, c("day1_Avelog10CPM_0.01_all_byFC.pdf", "day2_Avelog10CPM_0.01_all_byFC.pdf"))
+f2 <- paste0(outpath, c("C_Heatmap_24h_byFC.pdf", "C_Heatmap_48h_byFC.pdf"))
 file.rename(from = f1, to = f2)
 
 
@@ -382,15 +382,15 @@ x <- data.frame(id = rep(dge$samples$day, each = nrow(dge)),
 
 ncores <- min(c(detectCores(), 10))
 cluster <- new_cluster(ncores)
-sprmcor <- x %>% 
+sprmcor <- x[x$day != 0,] %>% 
   dplyr::group_by(day, Gene) %>% 
   partition(cluster) %>%
   dplyr::summarise(Chr = unique(Chr),
-                   spr = cor(cpm, Xchr_notASvelo_diff, method = "pearson"),
+                   spr = cor(cpm, Xchr_notASvelo_diff, method = "spearman"),
                    droprate = mean(cpm == 0),
                    n = length(cpm),
                    ypos = quantile(cpm, probs = 0.9),
-                   pvalue = cor.test(cpm, Xchr_notASvelo_diff, method = "pearson", use = "complete.obs")$p.value) %>% 
+                   pvalue = cor.test(cpm, Xchr_notASvelo_diff, method = "spearman", use = "complete.obs")$p.value) %>% 
   dplyr::arrange(Gene, day) %>%
   collect()
 sprmcor$fdr <- p.adjust(sprmcor$pvalue, method = "BH")
@@ -424,21 +424,21 @@ g <- de_barplot_ext %>%
   geom_text(aes(x = factor(day), y = n+1, group = direction, label = n), 
             hjust = -.1,
             color="black", position = position_dodge(0.9), size = geomtext_size, angle = 90, show.legend = FALSE) +
-  scale_y_continuous(limits = c(0, 200), breaks = seq(0, 250, by = 50)) +
+  scale_y_continuous(limits = c(0, 295), breaks = seq(0, 250, by = 50)) +
   labs(x = "Time [days]", y = "# Significantly correlated genes", 
        fill = "Correlation with\nX-chromosome change")
-adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = 3, savefile = paste0(outpath, "D_DE_barplot_corrXchr.pdf"))
+adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(outpath, "D_DE_barplot_corrXchr.pdf"))
 
 
 print("6) E/F: Heatmap - positive/negative regulators over time at day 1/2")
 
 fdr_threshold <- 0.05
-cor_thr <- 0.25
+maxn <- 20
 
 print(paste0("6.1) Subset to genes with FDR<=", fdr_threshold, " and |rho|>=", cor_thr, " at d1 or d2"))
 
 sub <- sprmcor[(sprmcor$day %in% c(1, 2)),]
-sub_sig <- sub[(sub$fdr <= fdr_threshold)&(abs(sub$spr) >= cor_thr),]
+sub_sig <- sub[sub$fdr <= fdr_threshold,]
 table(sub_sig$day, sub_sig$spr>0)
 summary(abs(sub_sig$spr[sub_sig$day == 1]))
 summary(abs(sub_sig$spr[sub_sig$day == 2]))
@@ -449,6 +449,10 @@ positive <- sub_sig[sub_sig$spr > 0,] %>% dplyr::arrange(-abs(spr))
 pos_genes <- unique(as.character(positive$Gene))
 negative <- sub_sig[sub_sig$spr<0,] %>% dplyr::arrange(-abs(spr))
 neg_genes <- unique(as.character(negative$Gene))
+
+if(length(pos_genes)>maxn) pos_genes <- pos_genes[seq_len(maxn)]
+if(length(neg_genes)>maxn) neg_genes <- neg_genes[seq_len(maxn)]
+
 
 print("6.3) Plot results through heatmap")
 
@@ -466,10 +470,10 @@ g <- temp %>%
                        midpoint=0, breaks=seq(-0.5, 0.5, .25), limits=c(-0.51,0.51)) + 
   scale_radius(breaks = seq(0, 0.5, by = 0.25), limits = c(0, 0.5), range = c(0.1, 4)) +
   labs(x = "Time [days]", y = "", 
-       fill = "Pearson's gene-wise correlation:\nrho(CPM_gene, X-chromosome change)", 
+       fill = "Spearman's gene-wise correlation:\nrho(CPM_gene, X-chromosome change)", 
        size = "Absolute correlation",
        title = "Positively correlated genes")
-adjust_size(g = g, panel_width_cm = 3, panel_height_cm = ph, 
+adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, 
             savefile = paste0(outpath, "E_corrXchrChange_PositiveRegulators.pdf"), 
             height = 3, width = 5)
 
@@ -487,9 +491,9 @@ g <- temp %>%
                        midpoint=0, breaks=seq(-0.5, 0.5, .25), limits=c(-0.51,0.51)) + 
   scale_radius(breaks = seq(0, 0.5, by = 0.25), limits = c(0, 0.5), range = c(0.1, 4)) +
   labs(x = "Time [days]", y = "", 
-       fill = "Pearson's gene-wise correlation:\nrho(CPM_gene, X-chromosome change)", 
+       fill = "Spearman's gene-wise correlation:\nrho(CPM_gene, X-chromosome change)", 
        size = "Absolute correlation",
        title = "Negatively correlated genes")
-adjust_size(g = g, panel_width_cm = 3, panel_height_cm = ph, 
+adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, 
             savefile = paste0(outpath, "F_corrXchrChange_NegativeRegulators.pdf"), 
             height = 3, width = 5)

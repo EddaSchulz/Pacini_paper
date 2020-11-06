@@ -1,5 +1,4 @@
 Day XistHigh XistLow
-0 0 274
 1 68 169
 2 242 52
 3 140 98
