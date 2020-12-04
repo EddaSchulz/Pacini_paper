@@ -1,8 +1,9 @@
 print("1) Define output path")
 
 outpath <- paste0(path, "output/fig5_XistXchrConcordance/"); dir.create(path = outpath, recursive = T, showWarnings = F)
-f3path <- paste0(path, "output/fig3_deXistHighLow/")
-f4path <- paste0(path, "output/fig4_deXchrChangeHighLow/")
+f4path <- paste0(path, "output/fig4_deXistHighLow/")
+suppath <- paste0(path, "output/fig_Supplementary/")
+fdr_threshold <- 0.05
 
 print("2) A: Concordance between Xist and X-chromosome Change DE and Correlation analyses [d1 & d2]")
 
@@ -12,56 +13,64 @@ results <- c()
 
 print("2.1.1) Xist - DE analysis")
 
-# load and filter data
-load(paste0(f3path, "ALLresults.RData"))
+# load data
+load(paste0(f4path, "ALLresults.RData"))
 fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "fdr")
 xist_de <- all_de[(all_de$day %in% c(1,2)), fields]
+xist_de$value <- xist_de$coef
 xist_de$direction <- ifelse(xist_de$coef>0, "Up-regulated", "Down-regulated") 
 results <- data.frame(analysis = "DE", test = "Xist", 
-                      xist_de[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr")])
+                      xist_de[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr", "value")])
 
 print("2.1.2) Xist - Correlation analysis")
 
-# load and filter data
-load(paste0(f3path, "sprmcor.RData"))
+# load data
+load(paste0(f4path, "sprmcor.RData"))
 colnames(sprmcor) <- c("day", "mgi_symbol", "chromosome_name", "correlation", 
                        "droprate", "droprate_Xist", "n", "pvalue_Xist", "fdr")
 fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "fdr")
 xist_cor <- sprmcor[(sprmcor$day %in% c(1,2)), fields]
+xist_cor$value <- xist_cor$correlation
 xist_cor$direction <- ifelse(xist_cor$correlation>0, "Up-regulated", "Down-regulated") 
 results <- rbind(results,
                  data.frame(analysis = "Correlation", test = "Xist", 
-                            xist_cor[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr")]))
+                            xist_cor[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr", "value")]))
 
 print("2.1.3) Xchr Change - DE analysis")
 
-# load and filter data
-load(paste0(f4path, "XchrChange_HighLow_MAST.RData"))
+# load data
+load(paste0(suppath, "XchrChange_HighLow_MAST.RData"))
 fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "fdr")
 xchr_de <- all_de[(all_de$day %in% c(1,2)), fields]
+xchr_de$value <- xchr_de$coef
 xchr_de$direction <- ifelse(xchr_de$coef>0, "Up-regulated", "Down-regulated") 
 results <- rbind(results,
                  data.frame(analysis = "DE", test = "Xchr",
-                            xchr_de[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr")]))
+                            xchr_de[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr", "value")]))
 
 print("2.1.4) Xchr Change - Correlation analysis")
 
 # load and filter data
-load(paste0(f4path, "cor_Xchr.RData"))
+load(paste0(suppath, "cor_Xchr.RData"))
 colnames(sprmcor) <- c("day", "mgi_symbol", "chromosome_name", "correlation", 
                        "droprate", "n", "ypos", "pvalue", "fdr")
 fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "fdr")
 xchr_cor <- sprmcor[(sprmcor$day %in% c(1,2)), fields]
+xchr_cor$value <- xchr_cor$correlation
 xchr_cor$direction <- ifelse(xchr_cor$correlation>0, "Up-regulated", "Down-regulated") 
 results <- rbind(results,
                  data.frame(analysis = "Correlation", test = "Xchr",
-                            xchr_cor[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr")]))
+                            xchr_cor[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr", "value")]))
 
+print("2.2) Exclude pseudogenes and X-linked genes with significant negative correlation coef. or logFC")
 
-print("2.2) Compute number of significant hits per gene and day: FDR<0.05 & nhits>3")
+results$gene_biotype <- bm$gene_biotype[match(results$mgi_symbol, bm$mgi_symbol)]
+results <- results[!grepl(x = results$gene_biotype, pattern = "pseudogene"),]
+results <- results[!(results$chromosome_name %in% "X" & results$value < 0 & results$fdr <= fdr_threshold),]
+
+print("2.3) Compute number of significant hits per gene and day: FDR<0.05 & nhits>3")
 
 # number of significant tests per gene
-fdr_threshold <- 0.05
 results$significant <- results$fdr <= fdr_threshold
 sig_gene_day <- results %>% 
   dplyr::group_by(mgi_symbol, day) %>% 
@@ -86,47 +95,115 @@ temp$mgi_symbol <- factor(temp$mgi_symbol, levels = tophits_genes)
 temp <- temp %>% arrange(mgi_symbol)
 
 
-print("2.3) Heatmap")
+print("2.4) Heatmap")
 
 # input matrix
 temp <- temp %>% dplyr::group_by(mgi_symbol) %>% dplyr::mutate(n = length(mgi_symbol))
 temp <- temp[temp$n == 8,]
-temp$lev <- paste0(temp$test, " - ", temp$analysis)
-temp$dlev <- paste0("Day ", temp$day, ": ", temp$lev)
-col_order <- c("Day 1: Xist - DE", "Day 1: Xist - Correlation", "Day 1: Xchr - DE", "Day 1: Xchr - Correlation",
-               "Day 2: Xist - DE", "Day 2: Xist - Correlation", "Day 2: Xchr - DE", "Day 2: Xchr - Correlation")
+temp$dlev <- paste0(temp$test, " - ", temp$analysis)
+col_order <- c("Xist - DE", "Xist - Correlation", "Xchr - DE", "Xchr - Correlation")
 temp$dlev <- factor(temp$dlev, levels = col_order)
 temp <- data.frame(temp) %>% arrange(mgi_symbol, dlev, test)
 
 # Color by direction and -log10(FDR)
 temp$lfdr <- -log10(temp$fdr + 1e-6)
 temp$col <- ifelse(temp$direction == "Up-regulated", temp$lfdr, -temp$lfdr)
-x <- matrix(data = c(temp$col), ncol = 8, byrow = T)
-rownames(x) <- unique(temp$mgi_symbol)
-colnames(x) <- unique(temp$dlev)
-x <- x[, col_order]
 
 # order genes by minimum FDR
-y <- apply(x, 1, function(x) max(abs(x))*sign(x[which.max(abs(x))]))
-o <- order(y, decreasing = T)
-x <- x[o,]
+x <- temp %>% dplyr::group_by(mgi_symbol) %>% dplyr::summarise(m = max(abs(col))*sign(col[which.max(abs(col))])) %>%
+  arrange(-m) %>% as.data.frame()
+order_genes <- rev(as.character(x$mgi_symbol))
+temp$mgi_symbol <- factor(temp$mgi_symbol, levels = order_genes)
 
-# identify significant ones
-thr <- log10(fdr_threshold)
-significant_labels <- matrix(ifelse((c(x) <= thr)|(c(x) >= -thr), "*", ""), ncol = ncol(x), byrow = F)
+# identify significant tests
+temp$sig_label <- ifelse(temp$fdr <= fdr_threshold, "*", "")
 
-# aesthetics
-colorPalette = rev(c("#ca0020", "#f4a582", "#f7f7f7", "#92c5de", "#0571b0")); paletteLength = 20;
-myColor <- c(colorRampPalette(colorPalette)(paletteLength))
-cellheight = 6; fontsize_col = 6; fontsize_row = 6; width = 10; cellwidth = 10; fontsize = 6
-height <- cellheight*nrow(x)/30
-breaks <- seq(-6, 6)
+# plot
+h <- length(unique(temp$mgi_symbol))*0.225
+w <- length(unique(temp$dlev))*0.4
+temp$Day <- paste0("Day ", temp$day)
 
-pheatmap(x,
-         cluster_rows = FALSE, cluster_cols = FALSE, show_colnames = TRUE, color = myColor,
-         cellwidth = cellwidth, cellheight = cellheight,
-         width = width, height = height,
-         fontsize_col = fontsize_col, fontsize_row = fontsize_row, fontsize = fontsize,
-         gaps_col = 4, gaps_row = 23, border_color = FALSE,
-         display_numbers = significant_labels, number_color = "white",
-         filename = paste0(outpath, "A_XistXchr_Concordance.pdf"))
+g <- temp %>%
+  ggplot() +
+  theme_bw() + theme1 + 
+  facet_grid(. ~ Day) +
+  geom_tile(aes(x = factor(dlev), y = mgi_symbol, fill = col), color = "white") +
+  geom_text(aes(x = factor(dlev), y = mgi_symbol, label = sig_label), color = "white", size = geomtext_size) +
+  scale_fill_gradient2(low = "#0571b0", high = "#ca0020", mid = "white", 
+                       midpoint = 0, limit = c(-6, 6),
+                       name= "-log10FDR") +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(x = "",
+       y = "") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+adjust_size(g = g, panel_width_cm = w, panel_height_cm = h, 
+            savefile = paste0(outpath, "A_XistXchr_Concordance.pdf"), 
+            height = 10, width = 5)
+
+print("2.5) Heatmap - log2FC DE analyses")
+
+# subset data
+temp <- results[(results$mgi_symbol %in% order_genes)&(results$analysis == "DE"),]
+temp$mgi_symbol <- factor(temp$mgi_symbol, levels = order_genes)
+temp$dlev <- paste0(temp$test, " - ", temp$analysis)
+col_order <- c("Xist - DE", "Xchr - DE")
+temp$dlev <- factor(temp$dlev, levels = col_order)
+temp$sig_label <- ifelse(temp$fdr <= fdr_threshold, "*", "")
+
+# plot
+h <- length(unique(temp$mgi_symbol))*0.225
+w <- length(unique(temp$dlev))*0.4
+temp$Day <- paste0("Day ", temp$day)
+
+g <- temp %>%
+  ggplot() +
+  theme_bw() + theme1 + 
+  facet_grid(. ~ Day) +
+  geom_tile(aes(x = factor(dlev), y = mgi_symbol, fill = value), color = "white") +
+  geom_text(aes(x = factor(dlev), y = mgi_symbol, label = sig_label), color = "white", size = geomtext_size) +
+  scale_fill_gradient2(low = "#0571b0", high = "#ca0020", mid = "white", 
+                       midpoint = 0, limit = c(-3, 3),
+                       name= "log2FC") +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(x = "",
+       y = "") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+adjust_size(g = g, panel_width_cm = w, panel_height_cm = h, 
+            savefile = paste0(outpath, "B_XistXchr_DE_log2FC.pdf"), 
+            height = 10, width = 5)
+
+
+print("2.6) Heatmap - Correlation analyses")
+
+# subset data
+temp <- results[(results$mgi_symbol %in% order_genes)&(results$analysis == "Correlation"),]
+temp$mgi_symbol <- factor(temp$mgi_symbol, levels = order_genes)
+temp$dlev <- paste0(temp$test, " - ", temp$analysis)
+col_order <- c("Xist - Correlation", "Xchr - Correlation")
+temp$dlev <- factor(temp$dlev, levels = col_order)
+temp$sig_label <- ifelse(temp$fdr <= fdr_threshold, "*", "")
+
+# plot
+h <- length(unique(temp$mgi_symbol))*0.225
+w <- length(unique(temp$dlev))*0.4
+temp$Day <- paste0("Day ", temp$day)
+
+g <- temp %>%
+  ggplot() +
+  theme_bw() + theme1 + 
+  facet_grid(. ~ Day) +
+  geom_tile(aes(x = factor(dlev), y = mgi_symbol, fill = value), color = "white") +
+  geom_text(aes(x = factor(dlev), y = mgi_symbol, label = sig_label), color = "white", size = geomtext_size) +
+  scale_fill_gradient2(low = "#0571b0", high = "#ca0020", mid = "white", 
+                       midpoint = 0, limit = c(-0.5, 0.5),
+                       name= expression(rho)) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(x = "",
+       y = "") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+adjust_size(g = g, panel_width_cm = w, panel_height_cm = h, 
+            savefile = paste0(outpath, "C_XistXchr_Correlation_rho.pdf"), 
+            height = 10, width = 5)

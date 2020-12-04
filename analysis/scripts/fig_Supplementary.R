@@ -9,22 +9,22 @@ outpath <- paste0(path, "output/fig_Supplementary/"); dir.create(path = outpath,
 
 
 
-print("2) Supplementary figure 1: Alignment, Gene counting and Cell filtering")
+print("2) Supplementary figure 1: Mapping statistics and data pre-processing")
 
 print("2.1) A: Alignment and gene quantification - notAS")
 
 print("2.1.1) Load data")
 load(paste0(datapath, "UF_DGE.RData")); notas <- dge
-load(paste0(datapath, "UF_DGE_B6.RData")); b6 <- dge
-load(paste0(datapath, "UF_DGE_Cast.RData")); cast <- dge
+load(paste0(datapath, "UF_DGE_Spliced.RData")); spliced <- dge
+load(paste0(datapath, "UF_DGE_Unspliced.RData")); unspliced <- dge
 
 summary_stats <- data.frame(id = notas$samples$id, 
                             day = notas$samples$day,
                             total = notas$samples$seqdepth, 
                             ua = notas$samples$uniquealigned, 
                             exonic = colSums(notas$counts), 
-                            b6 = colSums(b6$counts), 
-                            cast = colSums(cast$counts))
+                            spliced = colSums(spliced$counts),
+                            unspliced = colSums(unspliced$counts))
 
 print("2.1.2) Compute median number and percentage of reads across samples")
 sum <- summary_stats %>%
@@ -32,16 +32,16 @@ sum <- summary_stats %>%
   dplyr::summarise(seqdepth = median(total), 
                    ua = median(ua), 
                    exonic = median(exonic),
-                   b6 = median(b6), 
-                   cast = median(cast))
-perc <- data.frame(summary_stats[, c("total", "ua", "exonic", "b6", "cast")]/summary_stats$total*100, day = summary_stats$day)
+                   spliced = median(spliced), 
+                   unspliced = median(unspliced))
+perc <- data.frame(summary_stats[, c("total", "ua", "exonic", "spliced", "unspliced")]/summary_stats$total*100, day = summary_stats$day)
 perc <- perc %>%
   dplyr::group_by(day) %>% 
   dplyr::summarise(seqdepth = median(total), 
                    ua = median(ua), 
                    exonic = median(exonic),
-                   b6 = median(b6), 
-                   cast = median(cast))
+                   spliced = median(spliced), 
+                   unspliced = median(unspliced))
 
 print("2.1.3) Melt variables")
 sum_melt <- tidyr::gather(sum, 'variable', 'value', -day)
@@ -49,7 +49,11 @@ perc_melt <- tidyr::gather(perc, 'variable', 'value', -day)
 perc_melt$value <- paste0(round(perc_melt$value, digits = 1), "%")
 sum_melt$perc <- perc_melt$value
 
-newlev <- c("seqdepth" = "Sequencing\nDepth", "ua" = "Uniquely\nAligned", "exonic" = "UMI\nnot-AS", "b6" = "UMI\nB6", "cast" = "UMI\nCast")
+newlev <- c("seqdepth" = "Total\nReads", 
+            "ua" = "Uniquely\nAligned", 
+            "exonic" = "UMI\nnot-AS", 
+            "spliced" = "UMI\nSpliced", 
+            "unspliced" = "UMI\nUnspliced")
 sum_melt$variable <- revalue(sum_melt$variable, replace = newlev)
 perc_melt$variable <- revalue(perc_melt$variable, replace = newlev)
 sum_melt$variable <- factor(sum_melt$variable, levels = newlev)
@@ -64,7 +68,7 @@ g <- sum_melt %>%
   scale_fill_grey() +
   scale_y_continuous(label = scientific_label, breaks = seq(0, 6e5, by = 1e5), limits = c(0, 7e5)) + 
   labs(x = "", y = "Number of reads", fill = "Time [days]")
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "S1_A_SeqOutput.pdf"))
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "S1_A_SeqOutput_notAS.pdf"))
 
 
 print("2.2) B: Cell filtering")
@@ -198,128 +202,152 @@ adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, savefile = paste0(ou
 
 
 
-print("2.4) D: Alignment and gene quantification - spliced/unspliced quantification")
-
-print("2.4.1) Load data")
-load(paste0(datapath, "UF_DGE_Spliced.RData")); spliced <- dge
-load(paste0(datapath, "UF_DGE_Unspliced.RData")); unspliced <- dge
-load(paste0(datapath, "UF_DGE_B6_Spliced.RData")); b6_spliced <- dge
-load(paste0(datapath, "UF_DGE_B6_Unspliced.RData")); b6_unspliced <- dge
-load(paste0(datapath, "UF_DGE_Cast_Spliced.RData")); cast_spliced <- dge
-load(paste0(datapath, "UF_DGE_Cast_Unspliced.RData")); cast_unspliced <- dge
-
-summary_stats <- data.frame(id = b6_spliced$samples$id, 
-                            day = b6_spliced$samples$day,
-                            total = b6_spliced$samples$seqdepth, 
-                            ua = b6_spliced$samples$uniquealigned, 
-                            spliced = colSums(spliced$counts),
-                            unspliced = colSums(unspliced$counts),
-                            spliced_b6 = colSums(b6_spliced$counts), 
-                            unspliced_b6 = colSums(b6_unspliced$counts), 
-                            spliced_cast = colSums(cast_spliced$counts), 
-                            unspliced_cast = colSums(cast_unspliced$counts))
-
-print("2.4.2) Compute median number and percentage of reads across samples")
-sum <- summary_stats %>%
-  dplyr::group_by(day) %>% 
-  dplyr::summarise(seqdepth = median(total), 
-                   ua = median(ua), 
-                   spliced = median(spliced),
-                   spliced_B6 = median(spliced_b6),
-                   spliced_Cast = median(spliced_cast),
-                   unspliced = median(unspliced),
-                   unspliced_B6 = median(unspliced_b6),
-                   unspliced_Cast = median(unspliced_cast))
-features <- colnames(summary_stats)[!colnames(summary_stats) %in% c("id", "day")]
-perc <- data.frame(summary_stats[, features]/summary_stats$total*100, day = summary_stats$day)
-perc <- perc %>%
-  dplyr::group_by(day) %>% 
-  dplyr::summarise(seqdepth = median(total), 
-                   ua = median(ua), 
-                   spliced = median(spliced),
-                   spliced_B6 = median(spliced_b6),
-                   spliced_Cast = median(spliced_cast),
-                   unspliced = median(unspliced),
-                   unspliced_B6 = median(unspliced_b6),
-                   unspliced_Cast = median(unspliced_cast))
-
-print("2.4.3) Melt variables")
-sum_melt <- tidyr::gather(sum, 'variable', 'value', -day)
-perc_melt <- tidyr::gather(perc, 'variable', 'value', -day)
-perc_melt$value <- paste0(round(perc_melt$value, digits = 1), "%")
-sum_melt$perc <- perc_melt$value
-
-newlev <- c("seqdepth" = "Sequencing\nDepth", 
-            "ua" = "Uniquely\nAligned", 
-            "spliced" = "UMI\nSpliced", "spliced_B6" = "UMI\nSpliced\nB6", "spliced_Cast" = "UMI\nSpliced\nCast",
-            "unspliced" = "UMI\nUnspliced", "unspliced_B6" = "UMI\nUnspliced\nB6", "unspliced_Cast" = "UMI\nUnspliced\nCast")
-sum_melt$variable <- revalue(sum_melt$variable, replace = newlev)
-perc_melt$variable <- revalue(perc_melt$variable, replace = newlev)
-sum_melt$variable <- factor(sum_melt$variable, levels = newlev)
-
-print("2.4.4) Plot")
-features <- as.character(unique(sum_melt$variable)[grepl(unique(sum_melt$variable), pattern = "UMI")])
-s <- sum_melt[sum_melt$variable %in% features,]
-s <- data.frame(s, strsplit2(s$variable, split = "\n")[,-1])
-s$X2 <- as.character(s$X2); s$X2[s$X2 == ""] <- "not-AS UMI"
-newlev <- c("not-AS UMI" = "not-AS UMI", "B6" = "B6 UMI", "Cast" = "Cast UMI")
-s$X2 <- factor(revalue(factor(s$X2), replace = newlev), levels = newlev)
-
-g <- s %>% 
-  ggplot() + 
-  theme_bw() + theme1 + 
-  facet_grid(.~X1) +
-  geom_bar(aes(x = X2, y = value, fill = factor(day)), stat = "identity", position=position_dodge()) + 
-  geom_text(aes(x = X2, y = value, group = factor(day), label=perc), hjust = -.1,
-            color="black", position = position_dodge(0.9), size = geomtext_size, angle = 90, show.legend = FALSE) +
-  scale_fill_grey() +
-  scale_y_continuous(label = scientific_label, breaks = seq(0, 6e5, by = 5e4), limits = c(0, 1.9e5)) + 
-  labs(x = "", y = "Number of UMI counts", fill = "Time [days]")
-adjust_size(g = g, panel_width_cm = 3.5, panel_height_cm = 2.5, savefile = paste0(outpath, "S1_D_SeqOutput_SplicedUnspliced.pdf"), width = 10)
-
-
-print("2.5) E: Gene quantification - AS")
-
-print("2.5.1) Load AS data")
-load(paste0(datapath, "UF_DGE_B6.RData")); b6 <- dge
-load(paste0(datapath, "UF_DGE_Cast.RData")); cast <- dge
-n_b6 <- colSums(b6$counts>0); n_cast <- colSums(cast$counts>0)
-temp <- data.frame(day = b6$samples$day,
-                   Cell = colnames(b6),
-                   n_b6, n_cast)
-
-print("2.5.2) Melt variables")
-temp_melt <- melt(temp, id.vars = c("day", "Cell"), measure.vars = c("n_b6", "n_cast"))
-temp_melt$variable <- revalue(factor(temp_melt$variable), replace = c("n_b6" = "B6", 
-                                                                      "n_cast" = "Cast"))
-
-print("2.5.3) Plot")
-
-g <- temp_melt %>% 
-  ggplot() +
-  theme_bw() +  theme1 + 
-  facet_grid(.~variable) +
-  geom_violin(aes(x = factor(day), y = value), 
-              alpha = 0.5, draw_quantiles = c(0.5), size = violin_box_size, show.legend = FALSE) + 
-  geom_jitter(aes(x = factor(day), y = value), 
-              alpha = 0.5, size = outliersize,
-              position=position_jitter(width = .05), shape = 16) +
-  labs(x="Time [days]", y = "# Detected genes")
-adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2.5, savefile = paste0(outpath, "S1_E_AS_DetectedGenes.pdf"))
 
 
 
 
 
 
+print("3) Supplementary figure 3: Marker gene expression and X:A expression ratios")
 
-
-
-print("3) Supplementary figure 2: Marker gene expression, notAS and AS X:A ratios")
-
-print("3.1) A: Compare expression of marker genes over time between Xist+ and Xist- cells")
+print("5.1) A: X:A ratio varying Xist UMI threshold")
 
 print("3.1.1) Load data")
+load(paste0(datapath, "DGE.RData"))
+nboot <- 1e3
+xcounts <- dge$counts[dge$genes$chromosome %in% "X",]
+autcounts <- dge$counts[dge$genes$chromosome %in% c(1:19),]
+n_xlinked <- nrow(xcounts); n_autlinked <- nrow(autcounts)
+
+print("3.1.2) Define Xist thresholds and compute bootstrapped X:A ratios")
+Xist_thr <- c(0, 5, 10, 25); Xist_thr <- Xist_thr[order(Xist_thr, decreasing = F)]
+temp_boot <- c()
+for (j in seq_len(nboot)) {
+  boot <- sample(x = seq_len(n_autlinked), size = n_xlinked, replace = TRUE)
+  value <- colSums(xcounts)/colSums(autcounts[boot,])
+  temp_boot <- rbind(temp_boot, value)
+}
+x2a_boot <- apply(temp_boot, 2, median)
+x2a <- data.frame(day = dge$samples$day, 
+                  id = colnames(dge), 
+                  Xist_UMI = dge$counts["Xist",], 
+                  x2a = x2a_boot)
+
+print("3.1.3) Store results")
+x2a_sub <- data.frame(x2a[x2a$Xist_UMI == 0,], group = "Xist = 0")
+for(j in seq_len(length(Xist_thr))){
+  thr <- Xist_thr[j]
+  x2a_sub <- rbind(x2a_sub,
+                   data.frame(x2a[x2a$Xist_UMI > thr,], group = paste0("Xist > ", thr)))
+}
+summ_cell <- ddply(x2a_sub, .variables = .(day, group), summarize, n = length(day))
+
+print("3.1.4) Plot")
+features <- c("id", "day", "group", "x2a")
+total <- x2a_sub
+total$day <- factor(total$day); summ_cell$day <- factor(summ_cell$day)
+cols <- c("black", 
+          adjustcolor("#e7298a", alpha.f = 1/5), adjustcolor("#e7298a", alpha.f = 1/3),
+          adjustcolor("#e7298a", alpha.f = 1/2), adjustcolor("#e7298a", alpha.f = 1)
+)
+
+g <- total %>%  
+  ggplot() +
+  theme_bw() + theme1 + 
+  geom_hline(yintercept = seq(0.5, 2, by = 0.5), linetype = "dashed", alpha = hvalpha, size = linesize) + 
+  scale_y_continuous(breaks = seq(0.5, 2, by = 0.5)) + 
+  geom_boxplot(aes(x = day, y = x2a, color = group), outlier.shape = NA, size = violin_box_size) + 
+  geom_jitter(aes(x = day, y = x2a, color = group), fill = "black", alpha = 1/10,
+              position=position_jitterdodge(jitter.width = .1, dodge.width = 0.75), 
+              size = outliersize, show.legend = FALSE) +
+  geom_text(summ_cell,
+            mapping = aes(x = day, y = Inf, label = paste0("n = ", n), fill = group),
+            position=position_dodge(.75), angle = 90, alpha = 1, size = geomtext_size, hjust = -0.5) +
+  coord_cartesian(clip = "off") +
+  labs(x = "Time [days]", y = "X:A ratio", color = "") +
+  scale_color_manual(values = cols)
+adjust_size(g = g, panel_width_cm = 10, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S3_A_x2a_XistnotASthreshold.pdf"), width = 7, height = 3)
+
+
+print("3.2) B: Gene-wise X:A ratios in Xist+ and Xist- cells")
+
+print("3.2.1) Load data")
+load(paste0(datapath, "DGE.RData"))
+df <- data.frame(day = rep(dge$samples$day, each = nrow(dge)), 
+                 Cell = rep(colnames(dge), each = nrow(dge)), 
+                 Xist = rep(dge$samples$Xist_class, each = nrow(dge)),
+                 els = rep(dge$samples$eff_libsize_notX, each = nrow(dge)),
+                 Gene = rep(rownames(dge), times = ncol(dge)),
+                 Chromosome = rep(dge$genes$chromosome, times = ncol(dge)),
+                 umi = c(dge$counts))
+df$cpm_value <- (df$umi/df$els)*1e6
+df$isX <- ifelse(df$Chromosome == "X", "X-linked", "Autosomal")
+df <- df[!is.na(df$isX),]
+
+# filter out lowly expressed genes at d0
+x <- df[df$day == 0,] %>% dplyr::group_by(Chromosome, Gene) %>% dplyr::summarise(avecpm = mean(cpm_value))
+table(highexp = x$avecpm > 0, Xlinked = x$Chromosome %in% "X")
+keep <- as.character(x$Gene[x$avecpm > 0])
+df <- df[df$Gene %in% keep,]
+
+print("3.2.2) Gene-wise X:A ratios Xist+ and Xist- cells")
+df <- df %>% dplyr::group_by(day) %>% dplyr::mutate(aut_mean = mean(cpm_value[Chromosome %in% c(1:19)]))
+df <- df %>% dplyr::group_by(Gene) %>% dplyr::mutate(d0_ratio = mean(cpm_value[day == 0])/unique(aut_mean[day == 0]))
+
+x2a <- df[(!df$Xist %in% "Detected (Xist UMI <= 5)")&(df$Chromosome %in% "X"), ] %>%
+  dplyr::group_by(day, Xist, Chromosome, Gene) %>%
+  dplyr::summarise(xgene_meancpm = mean(cpm_value),
+                   autosomes_meancpm = unique(aut_mean),
+                   ratio = mean(cpm_value)/unique(aut_mean),
+                   d0_ratio = unique(d0_ratio)) %>%
+  as.data.frame()
+x2a$Xist <- revalue(factor(as.character(x2a$Xist)), 
+                    replace = c("Undetected" = "Xist- cells",
+                                "Detected (Xist UMI > 5)" = "Xist+ cells"))
+x2a$Xist <- factor(x2a$Xist, levels = c("Xist- cells", "Xist+ cells"))
+
+print("3.2.3) Normalize ratios to d0 and test if median ratio is equal to 1")
+x2a <- x2a %>% dplyr::group_by(Gene) %>% dplyr::mutate(ratio_d0 = (ratio + 0.01)/(unique(d0_ratio) + 0.01))
+test <- x2a[x2a$day > 0,] %>% 
+  dplyr::group_by(day, Xist) %>% 
+  dplyr::summarise(pos = sum(ratio_d0 >= 1),
+                   n = length(ratio_d0),
+                   bt_pvalue = binom.test(x = sum(ratio_d0 >= 1), n = length(ratio_d0), p = 0.5)$p.value) %>%
+  as.data.frame()
+test$pvalue <- ifelse(test$bt_pvalue >= 0.01, paste0("p = ", round(test$bt_pvalue, digits = 2)), 
+                      ifelse(test$bt_pvalue >= 0.001, paste0("p = ", round(test$bt_pvalue, digits = 3)),
+                             "p < 0.001"))
+test$y <- ifelse(test$Xist == "Xist+ cells", 2.05, 1.95)
+
+print("3.2.4) Plot")
+cols <- c("black", "#e7298a")
+x <- x2a %>% dplyr::group_by(day, Xist) %>% dplyr::summarize(m = median(ratio_d0),
+                                                             q1 = quantile(ratio_d0, probs = 1/4),
+                                                             q3 = quantile(ratio_d0, probs = 3/4))
+
+g <- x[x$day>0,] %>%  
+  ggplot(aes(x = factor(day), y = m, color = Xist)) +
+  theme_bw() + theme1 + 
+  geom_hline(yintercept = seq(0.5, 1.75, 0.25), linetype = "dashed", size = linesize, alpha = 1/2) +
+  geom_point(size = 1, position = position_dodge(0.9)) +
+  geom_errorbar(aes(ymin=q1, ymax=q3), width=.2,
+                position=position_dodge(0.9), size = linesize) +
+  geom_text(data = test,
+            aes(x = factor(day), y = y, label = pvalue, color = Xist), 
+            size = geomtext_size, show.legend = FALSE) +
+  scale_color_manual(values = cols) + 
+  scale_y_continuous(breaks = seq(0.5, 1.75, 0.25), limits = c(0.5, 2.1)) +
+  labs(x = "Time [days]", 
+       y = "(ratio+0.01)/(d0_ratio + 0.01) [q1, median, q3]",
+       color = "")
+adjust_size(g = g, panel_width_cm = 4.5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S3_B_GeneWise_x2a_d0_mediantest.pdf"), width = 8, height = 2)
+
+
+print("3.3) C: Xist regulators over time")
+
+print("3.3.1) Load data")
 load(paste0(datapath, "DGE.RData"))
 genes <- c("Nanog", "Esrrb", "Dnmt3a")
 dge <- dge[dge$genes$symbol %in% genes,]
@@ -332,15 +360,15 @@ df <- data.frame(day = rep(dge$samples$day, each = nrow(dge)),
                  umi = c(dge$counts))
 df$cpm_value <- (df$umi/df$els)*1e6
 
-print("3.1.2) Test difference between Xist- and Xist+ cells")
+print("3.3.2) Test difference between Xist- and Xist+ cells")
 test <- df[df$day>0,] %>% dplyr::group_by(day, Gene) %>% 
   dplyr::summarise(w_pvalue = t.test(x = cpm_value[Xist == "Undetected"],
-                                          y = cpm_value[Xist == "Detected (Xist UMI > 5)"])$p.value)
+                                     y = cpm_value[Xist == "Detected (Xist UMI > 5)"])$p.value)
 test$pvalue <- ifelse(test$w_pvalue >= 0.01, paste0("p = ", round(test$w_pvalue, digits = 2)), 
-                    ifelse(test$w_pvalue >= 0.001, paste0("p = ", round(test$w_pvalue, digits = 3)),
-                           "p < 0.001"))
+                      ifelse(test$w_pvalue >= 0.001, paste0("p = ", round(test$w_pvalue, digits = 3)),
+                             "p < 0.001"))
 
-print("2.5.3) Plot")
+print("3.3.3) Plot")
 cols <- c("black", "#e7298a")
 temp <- df[!df$Xist %in% "Detected (Xist UMI <= 5)",]
 temp$Xist <- factor(as.character(temp$Xist), levels = c("Undetected", "Detected (Xist UMI > 5)"))
@@ -359,81 +387,281 @@ g <- temp %>%
   geom_text(data = test, aes(x = factor(day), y = 3.65, label = pvalue), size = geomtext_size, show.legend = FALSE) +
   scale_y_continuous(limits = c(0, 3.75), breaks = seq(0, 3.5, 0.5)) +
   labs(x = "Time [days]", y = expression(log[10]*"(CPM + 1) values"), color = "Xist not-AS classification")
-adjust_size(g = g, panel_width_cm = 4.5, panel_height_cm = 3, savefile = paste0(outpath, "S2_A_Xist_Regulators.pdf"), width = 8, height = 2)
+adjust_size(g = g, panel_width_cm = 4.5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S3_C_Xist_Regulators.pdf"), width = 8, height = 2)
 
 
-print("3.2) B: X:A ratio varying Xist UMI threshold")
 
-print("3.2.1) Load data")
-load(paste0(datapath, "DGE.RData"))
-nboot <- 1e3
-xcounts <- dge$counts[dge$genes$chromosome %in% "X",]
-autcounts <- dge$counts[dge$genes$chromosome %in% c(1:19),]
-n_xlinked <- nrow(xcounts); n_autlinked <- nrow(autcounts)
 
-print("3.2.2) Define Xist thresholds and compute bootstrapped X:A ratios")
-Xist_thr <- c(0, 5, 10, 25); Xist_thr <- Xist_thr[order(Xist_thr, decreasing = F)]
-temp_boot <- c()
-for (j in seq_len(nboot)) {
-  boot <- sample(x = seq_len(n_autlinked), size = n_xlinked, replace = TRUE)
-  value <- colSums(xcounts)/colSums(autcounts[boot,])
-  temp_boot <- rbind(temp_boot, value)
+
+
+
+
+
+print("4) Supplementary figure 4: Allele-specific mapping statistics")
+
+print("4.1) A: Alignment and gene quantification - spliced/unspliced quantification")
+
+print("4.1.1) Load data")
+load(paste0(datapath, "UF_DGE_B6.RData")); b6 <- dge
+load(paste0(datapath, "UF_DGE_Cast.RData")); cast <- dge
+load(paste0(datapath, "UF_DGE_B6_Spliced.RData")); b6_spliced <- dge
+load(paste0(datapath, "UF_DGE_B6_Unspliced.RData")); b6_unspliced <- dge
+load(paste0(datapath, "UF_DGE_Cast_Spliced.RData")); cast_spliced <- dge
+load(paste0(datapath, "UF_DGE_Cast_Unspliced.RData")); cast_unspliced <- dge
+
+summary_stats <- data.frame(id = b6_spliced$samples$id, 
+                            day = b6_spliced$samples$day,
+                            total = b6_spliced$samples$seqdepth, 
+                            ua = b6_spliced$samples$uniquealigned, 
+                            b6 = colSums(b6$counts), 
+                            cast = colSums(cast$counts),
+                            spliced_b6 = colSums(b6_spliced$counts), 
+                            unspliced_b6 = colSums(b6_unspliced$counts), 
+                            spliced_cast = colSums(cast_spliced$counts), 
+                            unspliced_cast = colSums(cast_unspliced$counts))
+
+print("4.1.2) Compute median number and percentage of reads across samples")
+sum <- summary_stats %>%
+  dplyr::group_by(day) %>% 
+  dplyr::summarise(seqdepth = median(total), 
+                   ua = median(ua), 
+                   B6 = median(b6),
+                   Cast = median(cast),
+                   spliced_B6 = median(spliced_b6),
+                   spliced_Cast = median(spliced_cast),
+                   unspliced_B6 = median(unspliced_b6),
+                   unspliced_Cast = median(unspliced_cast))
+features <- colnames(summary_stats)[!colnames(summary_stats) %in% c("id", "day")]
+perc <- data.frame(summary_stats[, features]/summary_stats$total*100, day = summary_stats$day)
+perc <- perc %>%
+  dplyr::group_by(day) %>% 
+  dplyr::summarise(seqdepth = median(total), 
+                   ua = median(ua), 
+                   B6 = median(b6),
+                   Cast = median(cast),
+                   spliced_B6 = median(spliced_b6),
+                   spliced_Cast = median(spliced_cast),
+                   unspliced_B6 = median(unspliced_b6),
+                   unspliced_Cast = median(unspliced_cast))
+
+print("4.1.3) Melt variables")
+sum_melt <- tidyr::gather(sum, 'variable', 'value', -day)
+perc_melt <- tidyr::gather(perc, 'variable', 'value', -day)
+perc_melt$value <- paste0(round(perc_melt$value, digits = 1), "%")
+sum_melt$perc <- perc_melt$value
+
+newlev <- c("seqdepth" = "Total\nReads", 
+            "ua" = "Uniquely\nAligned", 
+            "B6" = "UMI\nB6", 
+            "spliced_B6" = "UMI\nSpliced\nB6", 
+            "unspliced_B6" = "UMI\nUnspliced\nB6",
+            "Cast" = "UMI\nCast",
+            "spliced_Cast" = "UMI\nSpliced\nCast",
+            "unspliced_Cast" = "UMI\nUnspliced\nCast")
+sum_melt$variable <- revalue(sum_melt$variable, replace = newlev)
+perc_melt$variable <- revalue(perc_melt$variable, replace = newlev)
+sum_melt$variable <- factor(sum_melt$variable, levels = newlev)
+
+print("4.1.4) Plot")
+features <- as.character(unique(sum_melt$variable)[grepl(unique(sum_melt$variable), pattern = "UMI")])
+s <- sum_melt[sum_melt$variable %in% features,]
+g <- s %>% 
+  ggplot() + 
+  theme_bw() + theme1 + 
+  geom_bar(aes(x = variable, y = value, fill = factor(day)), stat = "identity", position=position_dodge()) + 
+  geom_text(aes(x = variable, y = value, group = factor(day), label=perc), hjust = -.1,
+            color="black", position = position_dodge(0.9), size = geomtext_size, angle = 90, show.legend = FALSE) +
+  scale_fill_grey() +
+  scale_y_continuous(label = scientific_label, breaks = seq(0, 1.25e4, by = 2e3), limits = c(0, 1.35e4)) + 
+  labs(x = "", y = "Number of UMI counts", fill = "Time [days]")
+adjust_size(g = g, panel_width_cm = 7, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S4_A_SeqOutput_AS.pdf"), width = 10)
+
+
+
+print("4.2) B: Gene quantification - AS")
+
+print("4.2.1) Load AS data")
+load(paste0(datapath, "UF_DGE_B6.RData")); b6 <- dge
+load(paste0(datapath, "UF_DGE_Cast.RData")); cast <- dge
+n_b6 <- colSums(b6$counts>0); n_cast <- colSums(cast$counts>0)
+temp <- data.frame(day = b6$samples$day,
+                   Cell = colnames(b6),
+                   n_b6, n_cast)
+
+print("4.2.2) Melt variables")
+temp_melt <- melt(temp, id.vars = c("day", "Cell"), measure.vars = c("n_b6", "n_cast"))
+temp_melt$variable <- revalue(factor(temp_melt$variable), replace = c("n_b6" = "B6", 
+                                                                      "n_cast" = "Cast"))
+
+print("4.2.3) Plot")
+g <- temp_melt %>% 
+  ggplot() +
+  theme_bw() +  theme1 + 
+  facet_grid(.~variable) +
+  geom_violin(aes(x = factor(day), y = value), 
+              alpha = 0.5, draw_quantiles = c(0.5), size = violin_box_size, show.legend = FALSE) + 
+  geom_jitter(aes(x = factor(day), y = value), 
+              alpha = 0.5, size = outliersize,
+              position=position_jitter(width = .05), shape = 16) +
+  labs(x="Time [days]", y = "# Detected genes")
+adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S4_B_AS_DetectedGenes.pdf"))
+
+
+
+
+
+
+
+
+
+print("5) Supplementary figure 5: Xist classification and allelic expression analysis")
+
+
+print("5.1) A: Xist AS classification changing AS UMI threshold")
+
+print("5.1.1) Load data")
+load(paste0(datapath, "NGFCF_DGE.RData")); notas <- dge
+load(paste0(datapath, "NGFCF_DGE_B6.RData")); b6 <- dge
+load(paste0(datapath, "NGFCF_DGE_Cast.RData")); cast <- dge
+df <- data.frame(day = b6$samples$day, ID = b6$samples$id, 
+                 xist_umi = notas$counts["Xist",],
+                 xist_b6 = b6$counts["Xist",], 
+                 xist_cast = cast$counts["Xist",], 
+                 xist_ratio = b6$counts["Xist",]/(b6$counts["Xist",] + cast$counts["Xist",]))
+
+print("5.1.2) Loop and AS Xist classification")
+as_threshold <- seq(10, 25, by = 5)
+as_classification <- c()
+lv <- c("Undetected", "Low", "Xist-MA (Xi=Cast)", "Xist-MA (Xi=B6)", "Skewed", "BA")
+for(thr in as_threshold){
+  temp <- df
+  temp$Xist_AS <- ifelse(temp$xist_ratio == 0, "Xist-MA (Xi=Cast)", 
+                         ifelse(temp$xist_ratio == 1, "Xist-MA (Xi=B6)", 
+                                ifelse((temp$xist_ratio >= 0.2) & (temp$xist_ratio <= 0.8), 
+                                       "BA", "Skewed")))
+  temp$Xist_AS[(temp$xist_b6 + temp$xist_cast) <= thr] <- "Low"
+  temp$Xist_AS[temp$xist_umi == 0] <- "Undetected"
+  temp$Xist_AS <- factor(temp$Xist_AS, levels = lv)
+  temp <- temp %>% dplyr::group_by(day, Xist_AS) %>% dplyr::summarise(n = length(ID))
+  as_classification <- rbind(as_classification,
+                             data.frame(temp, AS_threshold = thr))
 }
-x2a_boot <- apply(temp_boot, 2, median)
-x2a <- data.frame(day = dge$samples$day, 
-                  id = colnames(dge), 
-                  Xist_UMI = dge$counts["Xist",], 
-                  x2a = x2a_boot)
 
-print("3.2.3) Store results")
-x2a_sub <- data.frame(x2a[x2a$Xist_UMI == 0,], group = "Xist = 0")
-for(j in seq_len(length(Xist_thr))){
-  thr <- Xist_thr[j]
-  x2a_sub <- rbind(x2a_sub,
-                   data.frame(x2a[x2a$Xist_UMI > thr,], group = paste0("Xist > ", thr)))
-}
-summ_cell <- ddply(x2a_sub, .variables = .(day, group), summarize, n = length(day))
+print("5.1.3) Compute percentage of cells assigned to each Xist AS class for each day and threshold")
+# compute percentages
+as_classification <- as_classification %>% 
+  dplyr::group_by(day, AS_threshold) %>% 
+  dplyr::mutate(tot = sum(n)) %>% as.data.frame()
+perc <- as_classification %>%
+  dplyr::group_by(AS_threshold, day, Xist_AS) %>%
+  dplyr::summarise(p = (n/tot)*100) %>% as.data.frame()
+perc$Xist_AS <- factor(perc$Xist_AS, 
+                       levels = c("Undetected", "Low", "Xist-MA (Xi=Cast)", "Xist-MA (Xi=B6)", "Skewed", "BA"))
 
-print("2.6.4) Plot")
-features <- c("id", "day", "group", "x2a")
-total <- x2a_sub
-total$day <- factor(total$day); summ_cell$day <- factor(summ_cell$day)
-cols <- c("black", 
-          adjustcolor("#e7298a", alpha.f = 1/5), adjustcolor("#e7298a", alpha.f = 1/3),
-          adjustcolor("#e7298a", alpha.f = 1/2), adjustcolor("#e7298a", alpha.f = 1)
-          )
+# include missing levels
+missing <- perc %>% 
+  dplyr::group_by(AS_threshold, day) %>%
+  dplyr::summarise(Xist_AS = c("Undetected", "Low", "Xist-MA (Xi=Cast)", "Xist-MA (Xi=B6)", "Skewed", "BA")[!c("Undetected", "Low", "Xist-MA (Xi=Cast)", "Xist-MA (Xi=B6)", "Skewed", "BA") %in% unique(as.character(Xist_AS))],
+                   p = 0) %>%
+  as.data.frame()
+perc <- rbind(perc, missing)
 
-g <- total %>%  
+print("5.1.4) Plot")
+perc$Xist_AS_threshold <- paste0("Xist AS threshold = ", perc$AS_threshold)
+g <- ggplot(perc, aes(x = day, y = p, fill = Xist_AS)) + 
+  theme_bw() + theme1 +
+  facet_grid(. ~ Xist_AS_threshold) +
+  geom_area(size=0, colour="white") +
+  scale_fill_manual(values=color_alleles) +
+  scale_y_continuous(breaks = seq(0, 100, by = 25), expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0,0)) +
+  xlab("Time [days]") + ylab("Cells [%]") +
+  guides(fill = guide_legend(title = "", override.aes = list(alpha = 1)))
+adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S5_A_XistAS_VaryUMIthreshold.pdf"),
+            width = 10, heigh = 3)
+
+
+print("5.2) A: Bulk RNA-Seq: TX1072 - Xist overall and 5' gene expression")
+
+print("5.2.1) Load data")
+load(paste0(datapath, "DGE_TX1072_B6.RData")); b6 <- dge
+load(paste0(datapath, "DGE_TX1072_Cast.RData")); cast <- dge
+df_wt <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
+                    sample = rep(colnames(b6), each = nrow(b6)),
+                    Chr = rep(b6$genes$chromosome, times = ncol(b6)),
+                    Gene = rep(b6$genes$symbol, times = ncol(b6)),
+                    Ensembl = rep(b6$genes$ensembl, times = ncol(b6)),
+                    b6 = c(b6$counts), cast = c(cast$counts))
+df_wt <- df_wt %>% 
+  dplyr::group_by(sample) %>% 
+  dplyr::mutate(libsize_b6 = sum(b6[!Gene %in% "Xist_5prime"]), libsize_cast = sum(cast[!Gene %in% "Xist_5prime"]),
+                libsize_b6_Xist5prime = sum(b6[!Gene %in% "Xist"]), libsize_cast_Xist5prime = sum(cast[!Gene %in% "Xist"])) %>%
+  as.data.frame()
+temp <- df_wt[df_wt$Gene %in% "Xist",]
+
+print("5.2.2) Paired t-test comparing AS Xist expression levels")
+temp$b6_cpm <- (temp$b6/temp$libsize_b6)*1e6
+temp$cast_cpm <- (temp$cast/temp$libsize_cast)*1e6
+test <- temp %>% dplyr::group_by(day) %>% 
+  dplyr::summarise(t_pvalue = t.test(x = b6_cpm,
+                                     y = cast_cpm, 
+                                     paired = T)$p.value) %>%
+  as.data.frame()
+test$pvalue <- ifelse(test$t_pvalue >= 0.01, paste0("p = ", round(test$t_pvalue, digits = 2)), 
+                      ifelse(test$t_pvalue >= 0.001, paste0("p = ", round(test$t_pvalue, digits = 3)),
+                             "p < 0.001"))
+
+print("5.2.3) Plot")
+cols <- c("#d95f02", "#1b9e77")
+temp_melt <- melt(temp, id.vars = c("day", "Gene"), measure.vars = .("b6_cpm", "cast_cpm"))
+temp_melt$variable <- revalue(temp_melt$variable, replace = c("b6_cpm" = "B6", "cast_cpm" = "Cast"))
+temp_melt$variable <- factor(temp_melt$variable, levels = c("Cast", "B6"))
+g <- temp_melt %>%  
   ggplot() +
   theme_bw() + theme1 + 
-  geom_hline(yintercept = seq(0.5, 2, by = 0.5), linetype = "dashed", alpha = hvalpha, size = linesize) + 
-  scale_y_continuous(breaks = seq(0.5, 2, by = 0.5)) + 
-  geom_boxplot(aes(x = day, y = x2a, color = group), outlier.shape = NA, size = violin_box_size) + 
-  geom_jitter(aes(x = day, y = x2a, color = group), fill = "black", alpha = 1/10,
-              position=position_jitterdodge(jitter.width = .1, dodge.width = 0.75), 
-              size = outliersize, show.legend = FALSE) +
-  geom_text(summ_cell,
-            mapping = aes(x = day, y = Inf, label = paste0("n = ", n), fill = group),
-            position=position_dodge(.75), angle = 90, alpha = 1, size = geomtext_size, hjust = -0.5) +
-  coord_cartesian(clip = "off") +
-  labs(x = "Time [days]", y = "X:A ratio", color = "") +
-  scale_color_manual(values = cols)
-adjust_size(g = g, panel_width_cm = 10, panel_height_cm = 3, 
-            savefile = paste0(outpath, "S2_B_x2a_XistnotASthreshold.pdf"), width = 7, height = 3)
+  geom_jitter(aes(x = factor(day), y = log10(value + 1), color = variable), fill = "black",
+              alpha = 1/2, position=position_jitterdodge(jitter.width = .25, dodge.width = 0.75), 
+              size = scattersize, show.legend = FALSE) +
+  stat_summary(fun=mean, aes(x = factor(day), y = log10(value + 1), ymin=..y.., ymax=..y.., color = variable), 
+               geom='errorbar', width=0.5,
+               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.75), size = linesize*2) +
+  scale_color_manual(values = cols) + 
+  geom_text(data = test, aes(x = factor(day), y = 2.85, label = pvalue), size = geomtext_size, show.legend = FALSE) +
+  scale_y_continuous(limits = c(0, 3), breaks = seq(0, 4, 1)) +
+  labs(x = "Time [days]", 
+       y = expression("Xist CPM + 1 [ "*log[10]*" ]"), 
+       color = "Allele",
+       title = "TX1072: RNA-Seq - Xist expression")
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S5_B_BulkTX1072_Xist.pdf"), 
+            height = 3, width = 4)
 
 
-print("3.3) C: Allele specific X:A ratio for Xist-MA cells vs Scaled Pseudotime")
 
-print("3.3.1) Load AS data")
+
+
+
+
+
+
+print("6) Supplementary figure 6: Scaled pseudotime, AS X:A ratio and dX")
+
+print("6.1) A: Allele specific X:A ratio for Xist-MA cells vs Scaled Pseudotime")
+
+print("6.1.1) Load AS data")
 load(paste0(datapath, "DGE_B6.RData")); b6 <- dge
 load(paste0(datapath, "DGE_Cast.RData")); cast <- dge
-xcounts_b6 <- b6[b6$genes$chromosome %in% "X",]$counts
+xcounts_b6 <- b6[(b6$genes$chromosome %in% "X") & (!b6$genes$symbol %in% "Xist"),]$counts
 autcounts_b6 <- b6[b6$genes$chromosome %in% c(1:19),]$counts
-xcounts_cast <- cast[cast$genes$chromosome %in% "X",]$counts
+xcounts_cast <- cast[(cast$genes$chromosome %in% "X") & (!cast$genes$symbol %in% "Xist"),]$counts
 autcounts_cast <- cast[cast$genes$chromosome %in% c(1:19),]$counts
 n_xlinked <- nrow(xcounts_b6); n_autlinked <- nrow(autcounts_b6)
 
-print("3.3.2) Compute AS bootstrapped X:A ratios")
+print("6.1.2) Compute AS bootstrapped X:A ratios")
 b6_XiAi <- cast_XiAi <- c()
 nboot <- 1000
 for (j in seq_len(nboot)) {
@@ -458,22 +686,28 @@ x2a <- data.frame(day = dge$samples$day,
                   xist_classification = b6$samples$Xist_ratio_class, 
                   x2a_boot)
 
-print("3.3.3) Select only Xist_MA cells and define Xi and Xa accordingly")
-temp <- x2a[x2a$xist_classification %in% c("BL6_MA", "Cast_MA"),]
-temp$Xi_Ai <- ifelse(temp$xist_classification == "BL6_MA", temp$b6_XiAi, temp$cast_XiAi)
-temp$Xa_Aa <- ifelse(temp$xist_classification == "BL6_MA", temp$cast_XiAi, temp$b6_XiAi)
-temp$xist_classification <- plyr::revalue(factor(temp$xist_classification, levels = c("BL6_MA", "Cast_MA")), 
-                                          replace = c("BL6_MA" = "Xist-MA (Xi=B6)", 
-                                                      "Cast_MA" = "Xist-MA (Xi=Cast)"))
-temp_melt <- melt(temp, id.vars = c("day", "id", "xist_classification"), measure.vars = c("Xi_Ai", "Xa_Aa"))
-temp_melt$variable <- factor(temp_melt$variable, levels = c("Xi_Ai", "Xa_Aa"))
+print("6.1.3) Select only Xist_MA cells and define Xi and Xa accordingly")
+temp <- x2a
+temp_melt <- melt(temp, id.vars = c("day", "id", "xist_classification"), 
+                  measure.vars = c("b6_XiAi", "cast_XiAi"))
+temp_melt$allele <- revalue(factor(temp_melt$variable),
+                            replace = c("b6_XiAi" = "B6",
+                                        "cast_XiAi" = "Cast"))
+temp_melt$xist_classification <- factor(revalue(temp_melt$xist_classification,
+                                                replace = c("Undetected" = "Undetected",
+                                                            "Low-Xist" = "Low",
+                                                            "Middle" = "Skewed",
+                                                            "Xist_BA" = "BA",
+                                                            "BL6_MA" = "Xist-MA (Xi=B6)",
+                                                            "Cast_MA" = "Xist-MA (Xi=Cast)")),
+                                        levels = names(color_alleles))
 temp_melt$pdt <- pData(XX)$Scaled_PDT[match(temp_melt$id, pData(XX)$id)]
 
-print("3.3.4) Plot")
-g <- temp_melt %>%
+print("6.1.4) Plot")
+g <- temp_melt[!temp_melt$xist_classification %in% c("BL6_MA", "Cast_MA"),] %>%
   ggplot() + 
   theme_bw() + theme1 + 
-  facet_grid(variable ~ xist_classification) + 
+  facet_grid(xist_classification ~ allele) + 
   geom_hline(yintercept = 1, linetype = "dashed", alpha = 1/2, size = linesize) + 
   geom_point(aes(x = pdt, y = value, color = factor(day)), size = scattersize, alpha = 1/2, shape = 20) + 
   scale_color_manual(values = time_colors) + 
@@ -483,168 +717,36 @@ g <- temp_melt %>%
         strip.text.y = element_text(angle = 0)) +
   labs(x="Scaled Pseudotime", y = "Allele Specific X:A ratio", color = "Time [days]")
 adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, 
-            savefile = paste0(outpath, "S2_C_asX2A_PDT.pdf"))
+            height = 7,
+            savefile = paste0(outpath, "S6_A_asX2A_PDT.pdf"))
 
 
 
+print("6.2) B: Scaled PDT vs Xist expression - coloring by time point")
 
-
-
-
-
-
-
-print("4) Supplementary figure 4: MAST DE analyses and Correlation results")
-
-
-print("4.1) UpSetR plots for MAST DE analyses")
-
-print("4.1.1) Load data")
-load(paste0(path, "output/fig3_deXistHighLow/ALLresults.RData"))
-
-print("4.1.2) Subset results to significantly DE genes - excluding Xist")
-de_threshold <- 0.05
-all_de <- all_de[!all_de$mgi_symbol %in% "Xist",]
-all_de$isX <- ifelse(all_de$chromosome_name %in% "X", "X-linked", "Autosomal")
-all_de$direction <- factor(ifelse(all_de$coef < 0, "Down-regulated", "Up-regulated"), levels = c("Up-regulated", "Down-regulated"))
-sig_de <- all_de[(all_de$fdr <= de_threshold),]
-de_results <- sig_de[sig_de$test %in% "XistHigh_XistLow",]
-de_results$Time <- paste0(de_results$day*24, "h")
-
-print("4.1.3) Define significance of each gene throughout time")
-de_upset <- ddply(de_results, .variables = .(mgi_symbol, isX), summarize,
-                  de_24h = ifelse(length(fdr[Time == "24h"]) > 0, 
-                                  ifelse(fdr[Time == "24h"] < de_threshold, 1, 0), 0),
-                  de_48h = ifelse(length(fdr[Time == "48h"]) > 0, 
-                                  ifelse(fdr[Time == "48h"] < de_threshold, 1, 0), 0),
-                  de_72h = ifelse(length(fdr[Time == "72h"]) > 0, 
-                                  ifelse(fdr[Time == "72h"] < de_threshold, 1, 0), 0),
-                  de_96h = ifelse(length(fdr[Time == "96h"]) > 0, 
-                                  ifelse(fdr[Time == "96h"] < de_threshold, 1, 0), 0),
-                  direction = ifelse(all(coef > 0), "Up-regulated",
-                                     ifelse(all(coef < 0), "Down-regulated", "Mixed")))
-
-print("4.1.4) Plot - UpSetR for X-linked genes")
-maxbar <- 60
-x <- de_upset[de_upset$isX == "X-linked", ]
-a <- colSums(x[x$direction == "Up-regulated", grepl(x = colnames(x), pattern = "^de_")])
-b <- colSums(x[x$direction == "Down-regulated", grepl(x = colnames(x), pattern = "^de_")])
-metadata <- data.frame(sets = names(a),
-                       Up = as.numeric(a),
-                       Down = as.numeric(b))
-metadata$sets <- factor(metadata$sets, levels = paste0("de_", seq(24, 96, 24), "h"))
-pdf(file = paste0(outpath, "S4_A_MASTupset_Xlinked.pdf"),
-    width = 4, height = 5, onefile = TRUE, useDingbats = FALSE)
-upset(x, main.bar.color = "blue",
-      sets = paste0("de_", rev(seq(48, 96, 24)), "h"),
-      order.by = "degree",
-      group.by = "degree",
-      keep.order = TRUE,
-      decreasing = FALSE,
-      mb.ratio = c(0.7, 0.3),
-      point.size = scattersize*10, line.size = linesize*2, text.scale = 1.5,
-      queries = list(list(query = elements, params = list("direction", c("Up-regulated")),color = "red", active = T)),
-      mainbar.y.max = maxbar, mainbar.y.label = "Number of X-linked DE genes\n(Xist: High VS Low cells)\n(Xist excluded)\n"
-)
-dev.off()
-
-# number of up/down-regulated genes per time point
-vars <- c("de_24h", "de_48h", "de_72h", "de_96h")
-y <- reshape2::melt(x, id.vars = colnames(x)[!colnames(x) %in% vars], measure.vars = vars)
-y <- ddply(y, .variables = .(mgi_symbol), transform, 
-           id = paste0(variable[value==1], collapse = "."))
-y <- y[y$value ==1,]; ddply(y, .variables = .(id), summarize, 
-                            up = length(unique(mgi_symbol[direction == "Up-regulated"])),
-                            down = length(unique(mgi_symbol[direction == "Down-regulated"])))
-
-print("4.1.4) Plot - UpSetR for Autosomal genes")
-maxbar <- 300
-x <- de_upset[de_upset$isX == "Autosomal", ]
-a <- colSums(x[x$direction == "Up-regulated", grepl(x = colnames(x), pattern = "^de_")])
-b <- colSums(x[x$direction == "Down-regulated", grepl(x = colnames(x), pattern = "^de_")])
-metadata <- data.frame(sets = names(a),
-                       Up = as.numeric(a),
-                       Down = as.numeric(b))
-metadata$sets <- factor(metadata$sets, levels = paste0("de_", seq(24, 96, 24), "h"))
-
-pdf(file = paste0(outpath, "S4_A_MASTupset_Autosomal.pdf"),
-    width = 4, height = 5, onefile = TRUE, useDingbats = FALSE)
-upset(x, main.bar.color = "blue",
-      sets = paste0("de_", rev(seq(24, 96, 24)), "h"),
-      order.by = "degree",
-      group.by = "degree",
-      keep.order = TRUE,
-      decreasing = FALSE,
-      mb.ratio = c(0.7, 0.3),
-      point.size = scattersize*10, line.size = linesize*2, text.scale = 1.5,
-      queries = list(
-        list(query = elements, params = list("direction", c("Up-regulated")),
-             color = "red", active = T)),
-      mainbar.y.max = maxbar, mainbar.y.label = "Number of Autosomal DE genes\n(Xist: High VS Low cells)\n"
-)
-dev.off()
-
-# number of up/down-regulated genes per time point
-vars <- c("de_24h", "de_48h", "de_72h", "de_96h")
-y <- reshape2::melt(x, id.vars = colnames(x)[!colnames(x) %in% vars], measure.vars = vars)
-y <- ddply(y, .variables = .(mgi_symbol), transform, 
-           id = paste0(variable[value==1], collapse = "."))
-y <- y[y$value ==1,]; ddply(y, .variables = .(id), summarize, 
-                            up = length(unique(mgi_symbol[direction == "Up-regulated"])),
-                            down = length(unique(mgi_symbol[direction == "Down-regulated"])))
-
-
-print("4.2) Correlation analysis (Xist CPM) - known Xist regulators")
-
-print("4.2.1) Load data")
-load(paste0(path, "output/fig3_deXistHighLow/sprmcor.RData"))
-
-print("4.2.2) Subset to known regulators")
-regulators <- c("Nanog", "Klf2", "Klf4", "Prdm14", "Pou5f1", "Sox2", "Myc", "Zfp42", "Ctcf", "Tsix", "Yy1", "Rlim", "Ftx")
-temp <- sprmcor[sprmcor$Gene %in% regulators,] %>% as.data.frame()
-temp$detrate <- 1-temp$droprate
-temp$isX <- ifelse(temp$Chr %in% "X", "X-linked", "Autosomal")
-mypalette <- colorRampPalette(c("blue", "white", "red"))(1e3)
-
-print("4.2.3) Gather data frame")
-features <- c("day", "Gene", "isX", "detrate", "spr_Xist", "fdr_Xist")
-temp_m <- gather(temp[, features], variable, value, 
-                 -day, -Gene, -isX, -detrate, -fdr_Xist)
-temp_m$group <- revalue(factor(temp_m$variable), replace = c("spr_Xist" = "Xist corr. (all cells)"))
-temp_m$group <- factor(temp_m$group, levels = c("Xist corr. (all cells)"))
-
-print("4.2.4) Identify genes with significant correlations")
-temp_m$significant <- temp_m$fdr_Xist<0.05
-temp_m <- temp_m %>% dplyr::arrange(fdr_Xist)
-temp_m$Gene <- factor(temp_m$Gene, levels = rev(regulators))
-
-print("4.2.5) Plot")
-# compute plot size by # of genes
-ngenes <- length(unique(temp_m$Gene))
-ph <- ngenes*0.3
-# plot
-g <- temp_m[!temp_m$day %in% 0,] %>% 
+g <- pData(XX) %>% 
   ggplot() + 
   theme_bw() + theme1 +
-  facet_grid(.~group, scales = "free_y") + 
-  geom_point(aes(x = factor(day), y = Gene, fill = value, size = abs(value)), pch=22, stroke = 0) +
-  geom_point(data = temp_m[temp_m$significant == TRUE,], aes(x = factor(day), y = Gene), size = small_scattersize, color = "white", pch = 1) +
-  scale_fill_gradient2(low="blue", mid="white", high="red", 
-                       midpoint=0, breaks=seq(-0.5, 0.5, .25), limits=c(-0.51,0.51)) + 
-  scale_radius(breaks = seq(0, 0.5, by = 0.25), limits = c(0, 0.5), range = c(0.1, 4)) +
-  labs(x = "Time [days]", y = "", fill = "Spearman's correlation to Xist CPM", size = "Absolute correlation")
-adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, savefile = paste0(outpath, "S4_B_SprmCorrToXistCPM_KnownRegulators.pdf"))
+  geom_point(aes(x = Scaled_PDT, y = log10(xist_cpm + 1), color = factor(day)),
+             size = small_scattersize) + 
+  scale_color_manual(values = time_colors) +
+  labs(x="Scaled Pseudotime", 
+       y = expression("Xist ["*log[10]*"(CPM + 1)]"), 
+       color = "Time [days]") +
+  guides(color = guide_legend(override.aes = list(size=2)))
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S6_B_XistCPM_ScaledPDT.pdf"))
 
 
-print("4.3) not-AS RNA-velocity normalized change in chrX expression in Xist+ and Xist- cells")
+print("6.3) C: dX in Xist+ and Xist- cells")
 
-print("4.3.1) Load data")
+print("6.3.1) Load data")
 f1path <- paste0(path, "output/fig1_NotAS/")
 load(paste0(datapath, "NCF_DGE_Spliced.RData")); spliced <- dge
 load(paste0(datapath, "DGE.RData")); notas <- dge
 load(paste0(f1path, "notAS_vel.RData"))
 
-print("4.3.2) Compute RNA-velocity predicted change in normalized X-chromosome expression")
+print("6.3.2) Compute RNA-velocity predicted change in normalized X-chromosome expression")
 
 p <- notAS_vel$projected; c <- notAS_vel$current
 colnames(p) <- apply(cbind(as.numeric(gsub(strsplit2(colnames(p), split = "\\_")[,1], pattern = "h", replacement = ""))/24,
@@ -658,7 +760,7 @@ diff_xchr <- log2(colSums(c_xchr)/colSums(p_xchr))
 m <- match(names(diff_xchr), rownames(notas$samples)); table(is.na(m))
 samples <- notas$samples[m,]
 
-print("4.3.3) Define data frame")
+print("6.3.3) Define data frame")
 
 df <- data.frame(day = samples$day, 
                  id = rownames(samples),
@@ -669,12 +771,12 @@ lv_notas <- c("Undetected" = "Xist- cells",
               "Detected (Xist UMI <= 5)" = "Xist+ cells [UMI<=5]",
               "Detected (Xist UMI > 5)" = "Xist+ cells")
 lv_as <- c("Undetected" = "Undetected", "Low-Xist" = "Low",
-        "Middle" = "Skewed", "Xist_BA" = "BA",
-        "BL6_MA" = "Xist-MA (Xi=B6)", "Cast_MA" = "Xist-MA (Xi=Cast)")
+           "Middle" = "Skewed", "Xist_BA" = "BA",
+           "BL6_MA" = "Xist-MA (Xi=B6)", "Cast_MA" = "Xist-MA (Xi=Cast)")
 df$xist_notas <- factor(revalue(factor(df$Xist_notAS), replace = lv_notas), levels = lv_notas)
 df$xist_as <- factor(revalue(factor(df$Xist_AS), replace = lv_as), levels = lv_as)
 
-print("4.3.4) Plot")
+print("6.3.4) Plot")
 g <- df[!df$xist_notas %in% "Xist+ cells [UMI<=5]",] %>%  
   ggplot() +
   theme_bw() + theme1 + 
@@ -685,177 +787,528 @@ g <- df[!df$xist_notas %in% "Xist+ cells [UMI<=5]",] %>%
               size = outliersize, show.legend = FALSE) +
   scale_color_manual(values = rev(comparison_colors)) +
   labs(x = "Time [days]", 
-       y = expression(log[2]*"( "*Xchr[Current]*" / "*Xchr[Predicted]*" )"),
+       y = expression(log[2]*"( "*Delta*"X )"),
        color = "Xist not-AS classification")
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "S4_C_XchrChange_XistnotAS.pdf"), 
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S6_C_XchrChange_XistnotAS.pdf"), 
             width = 5, height = 2)
 
 
 
-print("4.4) UMAP embedding colored by Xchr predicted change in Xist- and Xist+ cells")
-
-print("4.4.1) Load data")
-load(paste0(f1path, "umap.RData"))
-xpred <- colSums(p_xchr); xcurr <- colSums(c_xchr)
-m <- match(umap$id, names(xpred)); table(is.na(m))
-umap <- data.frame(umap,
-                   xpred = xpred[m],
-                   xcurr = xcurr[m])
-
-print("4.4.2) Plot")
-temp <- umap[!umap$xist_detection %in% "Xist+ cells [UMI<=5]",]
-mid <- median(temp$xpred[temp$day == 0]); print(paste0("The median normalized predicted X-chromosome change in d0 cells is ", round(mid, digits = 3)))
-g <- temp %>%
-  ggplot() + 
-  theme_bw() + theme1 +
-  facet_grid(.~xist_detection) +
-  geom_point(aes(x = umap1, y = umap2, color = xpred), size = outliersize, shape = 20) + 
-  scale_color_gradient2(midpoint = mid, low = "blue", mid = "grey", high = "red") +
-  labs(x="UMAP 1", y = "UMAP 2", color = "RNA-velocity predicted variation\nin chrX gene expression") + 
-  guides(color = guide_colourbar(barwidth = 0.7, barheight = 4)) + 
-  theme(legend.position = "right",
-        strip.text.y = element_text(angle = 0))
-adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = 2.5, savefile = paste0(outpath, "S4_D_UMAP_XchrPredicted.pdf"))
 
 
-print("4.5) UpSetR plots for MAST DE analyses - Xchr change")
 
-print("4.5.1) Load data")
-load(paste0(path, "output/fig4_deXchrChangeHighLow/XchrChange_HighLow_MAST.RData"))
 
-print("4.5.2) Subset results to significantly DE genes")
-de_threshold <- 0.05
+
+
+
+print("7) Supplementary figure 7: Identification of putative Xist regulators through velocity-based dX analysis")
+
+
+f1path <- paste0(path, "output/fig1_NotAS/")
+
+print("7.1) A: X-chromosome change K-means classification")
+
+print("7.1.1) Load data")
+
+load(paste0(datapath, "NCF_DGE_Spliced.RData")); spliced <- dge
+load(paste0(datapath, "DGE.RData")); notas <- dge
+load(paste0(f1path, "notAS_vel.RData"))
+
+print("7.1.2) Compute RNA-velocity predicted change in normalized X-chromosome expression")
+
+p <- notAS_vel$projected; c <- notAS_vel$current
+colnames(p) <- apply(cbind(as.numeric(gsub(strsplit2(colnames(p), split = "\\_")[,1], pattern = "h", replacement = ""))/24,
+                           strsplit2(colnames(p), split = "\\_")[, -1]), 1, function(x) paste0("d", paste0(x, collapse = "_")))
+colnames(c) <- apply(cbind(as.numeric(gsub(strsplit2(colnames(c), split = "\\_")[,1], pattern = "h", replacement = ""))/24,
+                           strsplit2(colnames(c), split = "\\_")[, -1]), 1, function(x) paste0("d", paste0(x, collapse = "_")))
+m <- match(rownames(p), rownames(spliced)); table(is.na(m))
+genes <- spliced$genes[m,]; genes_x <- genes[genes$chromosome %in% "X",]
+p_xchr <- p[genes$chromosome %in% "X",]; c_xchr <- c[genes$chromosome %in% "X",]; table(genes$chromosome %in% "X")
+diff_xchr <- log2(colSums(c_xchr)/colSums(p_xchr))
+m <- match(names(diff_xchr), rownames(notas$samples)); table(is.na(m))
+samples <- notas$samples[m,]
+
+print("7.1.3) Define data frame")
+
+df <- data.frame(day = samples$day, 
+                 id = rownames(samples),
+                 Xist_AS = samples$Xist_ratio_class,
+                 Xist_notAS = samples$Xist_class,
+                 diff = diff_xchr)
+lv <- c("Undetected" = "Undetected", "Low-Xist" = "Low",
+        "Middle" = "Skewed", "Xist_BA" = "BA",
+        "BL6_MA" = "Xist-MA (Xi=B6)", "Cast_MA" = "Xist-MA (Xi=Cast)")
+df$xist_as <- factor(revalue(factor(df$Xist_AS), replace = lv), levels = lv)
+
+print("7.1.4) Compute and order K-means clusters, separately for each time point")
+
+# k-means classification
+k <- 3
+df_de <- df %>%
+  dplyr::group_by(day) %>%
+  dplyr::mutate(km = kmeans(diff, centers = k, iter.max = 1000, nstart = 1000)$cluster)
+
+# order k-means clusters
+df_de <- df_de %>%
+  dplyr::group_by(day, km) %>% dplyr::mutate(kmax = max(diff)) %>%
+  dplyr::group_by(day) %>% dplyr::mutate(km = ifelse(kmax == max(kmax), "high",
+                                                     ifelse(kmax == min(kmax), "low", "medium"))) %>% as.data.frame()
+df_de$km <- factor(df_de$km, levels = c("low", "medium", "high"))
+table(K = df_de$km, day = df_de$day)
+
+# include variable in DGE list
+dge_ext <- notas
+m <- match(colnames(dge_ext), df_de$id)
+dge_ext$samples$km_XchrChange <- df_de$km[m]
+
+print("7.1.5) Plot")
+
+summ_cell <- ddply(df_de, .variables = .(day, km), summarize, n = length(day))
+g <- df_de %>%  
+  ggplot() +
+  theme_bw() + theme1 + 
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 1/3, size = linesize) +
+  geom_jitter(aes(x = day, y = diff, group = km, color = km), 
+              size = outliersize, show.legend = FALSE,
+              position=position_jitterdodge(jitter.width = .5, dodge.width = 0.75)) +
+  scale_color_manual(values = c("blue", "grey", "red")) +
+  geom_text(summ_cell, mapping = aes(x = day, y = Inf, label = paste0("n = ", n), fill = km),
+            position=position_dodge(0.75), angle = 90, alpha = 1, size = geomtext_size, hjust = -0.5) + 
+  coord_cartesian(clip = "off") +
+  labs(x="Time [days]", y = expression(log[2]*"( "*Delta*"X )"))
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 2, 
+            savefile = paste0(outpath, "S7_A_XchrChange_Kmeans.pdf"))
+
+
+print("7.2) B: X-chromosome change High vs Xist Low MAST DE analysis per time point")
+
+print("7.2.1) Define contrast and launch DE analyses")
+
+# define contrast(s)
+contrasts <- list(HighXchrChange_LowXchrChange = c("km_XchrChange", list("high", "low")))
+min_sample_test <- 10; de_threshold <- 5e-2; days <- 1:4
+
+# launch MAST analysis for each contrast
+for(cont in 1:length(contrasts)){
+  comparison <- names(contrasts)[cont]
+  variable <- unlist(contrasts[[cont]][1]); variable_levels <- contrasts[[cont]][2:3]
+  
+  if(!dir.exists(paste0(outpath, comparison))){
+    dir.create(path = paste0(outpath, comparison), showWarnings = FALSE, recursive = TRUE)
+    
+    for (i in 1:length(days)) {
+      time <- days[i]; cat('Processing day', time, '..')
+      dge <- dge_ext[, dge_ext$samples$day == time]
+      dge$samples$sample <- rownames(dge$samples)
+      
+      # subset to grouping conditions only
+      temp <- dge[!(grepl(dge$genes$symbol, pattern = "^ERCC") | duplicated(dge$genes$ensembl)), dge$samples[,variable] %in% unlist(variable_levels)]
+      grp <- temp$samples[,variable]
+      grp <- ifelse(grp %in% variable_levels[[1]], "case", "control"); table(grp)
+      names(grp) <- temp$samples$sample
+      grp <- factor(grp, levels = c("control", "case"))
+      
+      # store the number of cases and controls per time point
+      if(!file.exists(paste0(outpath, comparison, "/Nsamples_perTime.txt"))){
+        m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
+        colnames(m) <- c("Day", c(strsplit2(comparison, split = "\\_")))
+        write.table(m, quote =FALSE, row.names = FALSE, col.names = TRUE, 
+                    file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
+      }else{
+        m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
+        write.table(m, quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE,
+                    file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
+      }
+      
+      if(min(table(grp)) >= min_sample_test){
+        # compute detection rate and cpm matrix
+        cdr <- scale(colMeans(temp$counts > 0))
+        els <- colSums(temp$counts)*(temp$samples$sf_notX/mean(temp$samples$sf_notX))
+        cpm <- t(t(temp$counts)/els)*1e6; rownames(cpm) <- temp$genes$ensembl
+        sca <- FromMatrix(exprsArray = log2(cpm + 1), 
+                          cData = data.frame(wellKey = names(grp), grp = grp, cdr = cdr),
+                          fData = data.frame(chromosome = temp$genes$chromosome, symbol = temp$genes$symbol, ensembl = temp$genes$ensembl, primerid = temp$genes$ensembl))
+        zlmdata <- zlm(~cdr + grp, sca)
+        summaryCond <- summary(zlmdata, doLRT='grpcase') ; summaryDt <- summaryCond$datatable
+        mast <- merge(summaryDt[contrast=='grpcase' & component=='H',.(primerid, `Pr(>Chisq)`)],
+                      summaryDt[contrast=='grpcase' & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], by='primerid')
+        mast$AveCPM <- rowMeans(cpm)
+        mast$fdr <- p.adjust(mast$`Pr(>Chisq)`, method = "BH")
+        mast <- data.frame(gene_features[match(mast$primerid, gene_features$Ensembl.ID), c("Chromosome", "Gene.Symbol", "Ensembl.ID")], mast)
+        colnames(mast) <- c("chromosome_name", "mgi_symbol", "ensembl_gene_id", "primerid", "Pr..Chisq.", "coef", "ci.hi", "ci.lo", "AveCPM", "fdr")
+        mast <- mast[order(mast$fdr, decreasing = FALSE),]
+        
+        # store results
+        save(mast, file = paste0(outpath, comparison, "/", time, ".RData"))
+        save(zlmdata, file = paste0(outpath, comparison, "/zlm_", time, ".RData"))
+        save(sca, file = paste0(outpath, comparison, "/sca_", time, ".RData"))
+      }
+    }
+  }
+}
+
+# store results
+all_de <- c()
+for (i in 1:length(days)) {
+  time <- days[i]; cat('Processing day', time, '..')
+  
+  for(cont in 1:length(contrasts)){
+    comparison <- names(contrasts)[cont]
+    
+    # de results
+    file <- paste0(outpath, comparison, "/", time, ".RData")
+    if(file.exists(file)){
+      load(file); all <- mast; all_de <- rbind(all_de, data.frame(test = comparison, day = time, all))
+    }
+  }
+}
+all_de <- all_de[(!is.na(all_de$mgi_symbol))&(!is.na(all_de$coef)),]
+save(all_de, file = paste0(outpath, "XchrChange_HighLow_MAST.RData"))
+
+print("7.2.2) Load MAST results excluding Xist from DE gene list")
+all_de <- all_de[!all_de$mgi_symbol %in% "Xist",]
 all_de$isX <- ifelse(all_de$chromosome_name %in% "X", "X-linked", "Autosomal")
-all_de$direction <- factor(ifelse(all_de$coef < 0, "Down-regulated", "Up-regulated"), levels = c("Up-regulated", "Down-regulated"))
+all_de$direction <- ifelse(all_de$coef < 0, "Down-regulated", "Up-regulated")
+all_de$direction <- factor(all_de$direction, levels = c("Up-regulated", "Down-regulated"))
 sig_de <- all_de[(all_de$fdr <= de_threshold),]
 de_results <- sig_de[sig_de$test %in% "HighXchrChange_LowXchrChange",]
-de_results$Time <- paste0(de_results$day*24, "h")
+de_barplot <- ddply(sig_de[sig_de$test %in% "HighXchrChange_LowXchrChange",], 
+                    .variables = .(day, isX, direction), summarize, 
+                    n = length(day))
 
-print("4.5.3) Define significance of each gene throughout time")
-de_upset <- ddply(de_results, .variables = .(mgi_symbol, isX), summarize,
-                  de_0h = ifelse(length(fdr[Time == "0h"]) > 0, 
-                                 ifelse(fdr[Time == "0h"] < de_threshold, 1, 0), 0),
-                  de_24h = ifelse(length(fdr[Time == "24h"]) > 0, 
-                                  ifelse(fdr[Time == "24h"] < de_threshold, 1, 0), 0),
-                  de_48h = ifelse(length(fdr[Time == "48h"]) > 0, 
-                                  ifelse(fdr[Time == "48h"] < de_threshold, 1, 0), 0),
-                  de_72h = ifelse(length(fdr[Time == "72h"]) > 0, 
-                                  ifelse(fdr[Time == "72h"] < de_threshold, 1, 0), 0),
-                  de_96h = ifelse(length(fdr[Time == "96h"]) > 0, 
-                                  ifelse(fdr[Time == "96h"] < de_threshold, 1, 0), 0),
-                  direction = ifelse(all(coef > 0), "Up-regulated",
-                                     ifelse(all(coef < 0), "Down-regulated", "Mixed")))
+all <- expand.grid(unique(all_de$day), unique(de_barplot$isX), unique(de_barplot$direction)) 
+all$id <- apply(all, 1, function(x) paste(x, collapse = "_"))
+present <- apply(de_barplot[,1:3], 1, function(x) paste(x, collapse = "_"))
+missing <- cbind(all[!all$id %in% present, !colnames(all) %in% "id"], 0)
+colnames(missing) <- colnames(de_barplot)
+de_barplot_ext <- rbind(de_barplot, missing)
+de_barplot_ext$direction <- factor(de_barplot_ext$direction, levels = c("Up-regulated", "Down-regulated"))
+de_barplot_ext$higherexp <- revalue(de_barplot_ext$direction, replace = c("Up-regulated" = "Xchr. down-regulated cells",
+                                                                          "Down-regulated" = "Xchr. up-regulated cells"))
+de_barplot_ext$alpha_numb <- ifelse(de_barplot_ext$n>0, "yes", "no")
 
-print("4.5.4) Plot - UpSetR for X-linked genes")
-maxbar <- 20
-x <- de_upset[de_upset$isX == "X-linked", ]
-a <- colSums(x[x$direction == "Up-regulated", grepl(x = colnames(x), pattern = "^de_")])
-b <- colSums(x[x$direction == "Down-regulated", grepl(x = colnames(x), pattern = "^de_")])
-metadata <- data.frame(sets = names(a),
-                       Up = as.numeric(a),
-                       Down = as.numeric(b))
-metadata$sets <- factor(metadata$sets, levels = paste0("de_", seq(0, 96, 24), "h"))
-pdf(file = paste0(outpath, "S4_E_MASTupsetXchrChange_Xlinked.pdf"),
-    width = 4, height = 5, onefile = TRUE, useDingbats = FALSE)
-upset(x, main.bar.color = "blue",
-      sets = paste0("de_", rev(seq(24, 96, 24)), "h"),
-      order.by = "degree",
-      group.by = "degree",
-      keep.order = TRUE,
-      decreasing = FALSE,
-      mb.ratio = c(0.7, 0.3),
-      point.size = scattersize*10, line.size = linesize*2, text.scale = 1.5,
-      queries = list(list(query = elements, params = list("direction", c("Up-regulated")),color = "red", active = T)),
-      mainbar.y.max = maxbar, mainbar.y.label = "Number of X-linked DE genes\n(Xchr-Change: High VS Low cells)\n"
+print("7.2.3) Plot - Summarize MAST DE results with barplot")
+g <- de_barplot_ext %>% 
+  ggplot() + 
+  theme_bw() + theme1 + 
+  facet_grid(.~isX) + 
+  geom_bar(aes(x = factor(day), y = n, fill = higherexp), stat = "identity", position=position_dodge()) + 
+  scale_fill_manual(values = c("red", "blue")) +
+  geom_text(aes(x = factor(day), y = n+1, group = higherexp, label = n), 
+            hjust = -.1,
+            color="black", position = position_dodge(0.9), size = geomtext_size, angle = 90, show.legend = FALSE) +
+  scale_y_continuous(limits = c(0, 250), breaks = seq(0, 200, by = 50)) + 
+  ylab("# Differentially expressed genes") + xlab("Time [days]") +
+  guides(fill = guide_legend(title="Higher expression in:", nrow=2, byrow=TRUE), alpha = 'none')
+adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S7_B_DE_barplot.pdf"))
+
+
+print("7.3) C: Represent DE genes through heatmap")
+
+print("7.3.1) Define plotting function")
+plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC = 2,
+                         outpath, is_log10CPMo1 = TRUE, abslog2FC_break = 7,
+                         colorPalette = c("black", "gold", "red"), paletteLength = 500,
+                         cellheight = 15, fontsize_col = 15, fontsize_row = 15, width = 15, cellwidth = 50, fontsize = 15,
+                         excludeFC = "|log2FC|<1", orderByXist = TRUE, orderbyFDR = FALSE){
+  
+  # define heatmap coloring
+  myColor <- c(colorRampPalette(colorPalette)(paletteLength))
+  
+  # select levels of two groups being compared
+  variable <- unlist(contrasts[[comparison]][1]); variable_levels <- contrasts[[comparison]][2:3]
+  
+  # subset results
+  all_de$log2FC <- all_de$coef
+  sig_all <- all_de[(all_de$test == comparison)&
+                      (abs(all_de$log2FC) >= log2(minAbsFC))&
+                      (all_de$fdr <= minFDR),]
+  
+  # repeat plot for Xlinked only and Autosomal+PosXlinked
+  # for(addlabel in c("all", "autosomal", "Xlinked")){
+  for(addlabel in c("all")){
+    if(addlabel == "all"){sig <- sig_all[!(sig_all$chromosome_name %in% "X" & sig_all$coef<0),]}
+    # if(addlabel == "autosomal"){sig <- sig_all[!sig_all$chromosome_name %in% "X",]}
+    # if(addlabel == "Xlinked"){sig <- sig_all[sig_all$chromosome_name %in% "X",]}
+    
+    # plot results for each time point --> Per cell heatmap
+    heat_path <- paste0(outpath, comparison, "/Heatmap/PerCell/")
+    if(nrow(sig)>1){
+      for(d in days){
+        dir.create(heat_path, showWarnings = FALSE, recursive = TRUE)
+        s <- sig[sig$day == d,]; s$log2FC <- s$coef; 
+        
+        if(orderbyFDR){
+          # order results by FDR-sign
+          s$o <- ifelse(s$log2FC>0, s$fdr, -log10(s$fdr))
+          s <- s[order(s$o, decreasing = FALSE),]
+          orderlabel <- "_byFDR"
+        }else{
+          # order by FC
+          s <- s[order(s$log2FC, decreasing = TRUE),]
+          orderlabel <- "_byFC"
+        }
+        
+        if(nrow(s)>1){
+          # store DE genes
+          degenes_s <- s$ensembl_gene_id
+          
+          # load normalized matrices
+          load(paste0(datapath, "DGE.RData"))
+          dge <- dge[, dge$samples$day == d]
+          
+          if(comparison == "XistHigh_XistLow"){
+            levels <- 1:7
+            dge$samples[[variable]] <- as.numeric(dge$samples[[variable]])
+          }
+          if(comparison == "HighXchrChange_LowXchrChange"){
+            dge$samples[[variable]] <- as.numeric(df_de$km[match(dge$samples$id, df_de$id)])
+            levels <- seq_len(length(unique(dge$samples[[variable]])))
+          }
+          dge <- dge[, dge$samples[[variable]] %in% levels]
+          
+          if(is_log10CPMo1){
+            counts <- log10(t(t(dge$counts)/(dge$samples$sf_notX*colSums(dge$counts)))*1e6 + 1)
+          }else{
+            counts <- log10(t(t(dge$counts)/dge$samples$sf_notX) + 1)
+          }
+          
+          # subset matrix to cells in contrast and DE genes only --> compute average gene level per variable group
+          avgexp <- counts[match(degenes_s, dge$genes$ensembl), ]
+          
+          # define column and row annotation
+          annot_col <- data.frame(Levels = dge$samples[[variable]]); rownames(annot_col) <- colnames(avgexp)
+          if(comparison == "XistHigh_XistLow"){
+            colors_col <- c(colorRampPalette(c("lightblue", "blue"))(3), "grey",
+                            colorRampPalette(c("orange", "red"))(3))
+            names(colors_col) <- 1:7
+          }
+          if(comparison == "HighXchrChange_LowXchrChange"){
+            colors_col <- c("blue", "grey", "red")
+            names(colors_col) <- levels
+          }
+          
+          fc_breaks <- seq(-abslog2FC_break, abslog2FC_break, by = 0.5)
+          ct <- cut(s$log2FC, breaks = fc_breaks)
+          levels <- levels(ct)
+          levels[levels %in% c("(-1,0]", "(0,1]")] <- "|log2FC|<1"
+          log2fc <- cut(s$log2FC, breaks = fc_breaks, labels = levels)
+          isX <- ifelse(s$chromosome_name %in% "X", "X-linked", "Autosomal")
+          annot_row <- data.frame(log2FC = log2fc, isX = isX); rownames(annot_row) <- s$mgi_symbol
+          colors_row <- colorRampPalette(c("blue", "white", "red"))(length(unique(levels))); names(colors_row) <- unique(levels)
+          colors_row <- colors_row[names(colors_row) %in% unique(ct)]
+          colors_row_isX <- c("black", "white"); names(colors_row_isX) <- c("X-linked", "Autosomal")
+          color_annot <- list(Levels = colors_col, log2FC = colors_row, isX = colors_row_isX)
+          
+          # produce heatmap
+          title_label <- ifelse(is_log10CPMo1, "Avelog10CPM", "AveUMI")
+          height <- cellheight*nrow(s)/30
+          avg_aut <- avgexp[!log2fc %in% excludeFC, ]
+          
+          # order by Xist expression
+          if(orderByXist){
+            if(comparison == "XistHigh_XistLow"){
+              o <- order(counts["Xist",], decreasing = FALSE)
+              avg_aut <- avg_aut[, o]
+              m <- match(colnames(avg_aut), rownames(dge$samples))
+              annot_col <- data.frame(Levels = dge$samples[[variable]][m]); rownames(annot_col) <- colnames(avg_aut)
+            }
+            if(comparison == "HighXchrChange_LowXchrChange"){
+              annot_col$Xist <- counts["Xist", match(rownames(annot_col), colnames(counts))]
+              o <- order(annot_col$Levels, annot_col$Xist)
+              avg_aut <- avg_aut[, o]
+              m <- match(colnames(avg_aut), rownames(dge$samples))
+              annot_col <- data.frame(Levels = dge$samples[[variable]][m]); rownames(annot_col) <- colnames(avg_aut)
+            }
+          }
+          
+          # gap between up and down regulated
+          gprw <- which(!duplicated(s$log2FC>0))[2] - 1
+          if(is.na(gprw)) gprw <- NULL
+          
+          pheatmap(avg_aut, 
+                   gaps_row = gprw,
+                   annotation_col = annot_col,
+                   # annotation_row = annot_row,
+                   annotation_colors = color_annot,
+                   cluster_rows = FALSE, cluster_cols = FALSE, show_colnames = FALSE, color = myColor, 
+                   cellwidth = cellwidth, cellheight = cellheight, 
+                   fontsize_col = fontsize_col, fontsize_row = fontsize_row, fontsize = fontsize,
+                   width = width, height = height,
+                   gaps_col = which(!duplicated(annot_col$Levels))[-1] - 1,
+                   filename = paste0(heat_path, "day", d, "_", title_label, "_", minFDR, "_", addlabel, orderlabel, ".pdf"))
+        }
+      }
+    }
+  }
+}
+
+print("7.3.2) Produce heatmaps")
+comp <- names(contrasts)
+minFDR <- 0.01
+minAbsFC <- 1.5
+is_log10CPMo1 <- TRUE
+abslog2FC_break <- 7
+load(paste0(outpath, "XchrChange_HighLow_MAST.RData"))
+
+plot_heatmap(all_de = all_de, contrasts = contrasts, comparison = comp, minFDR = minFDR, minAbsFC = minAbsFC, 
+             is_log10CPMo1 = is_log10CPMo1, abslog2FC_break = abslog2FC_break, outpath = outpath,
+             cellheight = 6, fontsize_col = 6, fontsize_row = 6, width = 10, cellwidth = .5, fontsize = 6)
+
+print("7.3.3) Move and rename plots in figures folder")
+f <- paste0(outpath, names(contrasts), "/Heatmap/PerCell/", 
+            c("day1_Avelog10CPM_0.01_all_byFC.pdf", "day2_Avelog10CPM_0.01_all_byFC.pdf"))
+file.copy(from = f, to = outpath)
+f1 <- paste0(outpath, c("day1_Avelog10CPM_0.01_all_byFC.pdf", "day2_Avelog10CPM_0.01_all_byFC.pdf"))
+f2 <- paste0(outpath, c("S7_C_Heatmap_24h_byFC.pdf", "S7_C_Heatmap_48h_byFC.pdf"))
+file.rename(from = f1, to = f2)
+
+
+
+print("7.4) D: Correlation analysis")
+
+print("7.4.1) Load data and launch gene-wise correlation analysis to X-chromosome change")
+
+### compute correlation between difference in Xchr relative expression and not-AS gene expression (excluding d0 cells)
+load(paste0(datapath, "DGE.RData"))
+dge$cpm <- t(t(dge$counts)/(colSums(dge$counts)*dge$samples$sf_notX))*1e6
+m <- match(df$id, dge$samples$id); table(is.na(m))
+dge <- dge[,m]
+
+# compute and test correlations
+x <- data.frame(id = rep(dge$samples$day, each = nrow(dge)),
+                day = rep(dge$samples$day, each = nrow(dge)), 
+                Xchr_notASvelo_diff = rep(df$diff, each = nrow(dge)),
+                Gene = rep(dge$genes$symbol, times = ncol(dge)),
+                Chr = rep(dge$genes$chromosome, times = ncol(dge)),
+                cpm = c(dge$cpm)
 )
-dev.off()
 
-# number of up/down-regulated genes per time point
-vars <- c("de_0h", "de_24h", "de_48h", "de_72h", "de_96h")
-y <- reshape2::melt(x, id.vars = colnames(x)[!colnames(x) %in% vars], measure.vars = vars)
-y <- ddply(y, .variables = .(mgi_symbol), transform, 
-           id = paste0(variable[value==1], collapse = "."))
-y <- y[y$value ==1,]; ddply(y, .variables = .(id), summarize, 
-                            up = length(unique(mgi_symbol[direction == "Up-regulated"])),
-                            down = length(unique(mgi_symbol[direction == "Down-regulated"])))
+ncores <- min(c(detectCores(), 10))
+cluster <- new_cluster(ncores)
+sprmcor <- x[x$day != 0,] %>% 
+  dplyr::group_by(day, Gene) %>% 
+  partition(cluster) %>%
+  dplyr::summarise(Chr = unique(Chr),
+                   spr = cor(cpm, Xchr_notASvelo_diff, method = "spearman"),
+                   droprate = mean(cpm == 0),
+                   n = length(cpm),
+                   ypos = quantile(cpm, probs = 0.9),
+                   pvalue = cor.test(cpm, Xchr_notASvelo_diff, method = "spearman", use = "complete.obs")$p.value) %>% 
+  dplyr::arrange(Gene, day) %>%
+  collect()
+sprmcor$fdr <- p.adjust(sprmcor$pvalue, method = "BH")
+sprmcor$day <- as.numeric(as.character(sprmcor$day))
+sprmcor <- sprmcor[!is.na(sprmcor$fdr),] %>% arrange(fdr)
+save(sprmcor, file = paste0(outpath, "cor_Xchr.RData"))
 
-print("4.1.4) Plot - UpSetR for Autosomal genes")
-maxbar <- 300
-x <- de_upset[de_upset$isX == "Autosomal", ]
-a <- colSums(x[x$direction == "Up-regulated", grepl(x = colnames(x), pattern = "^de_")])
-b <- colSums(x[x$direction == "Down-regulated", grepl(x = colnames(x), pattern = "^de_")])
-metadata <- data.frame(sets = names(a),
-                       Up = as.numeric(a),
-                       Down = as.numeric(b))
-metadata$sets <- factor(metadata$sets, levels = paste0("de_", seq(0, 96, 24), "h"))
-
-pdf(file = paste0(outpath, "S4_E_MASTupsetXchrChange_Autosomal.pdf"),
-    width = 4, height = 5, onefile = TRUE, useDingbats = FALSE)
-upset(x, main.bar.color = "blue",
-      sets = paste0("de_", rev(seq(48, 96, 24)), "h"),
-      order.by = "degree",
-      group.by = "degree",
-      keep.order = TRUE,
-      decreasing = FALSE,
-      mb.ratio = c(0.7, 0.3),
-      point.size = scattersize*10, line.size = linesize*2, text.scale = 1.5,
-      queries = list(
-        list(query = elements, params = list("direction", c("Up-regulated")),
-             color = "red", active = T)),
-      mainbar.y.max = maxbar, mainbar.y.label = "Number of Autosomal DE genes\n(Xist: High VS Low cells)\n"
-)
-dev.off()
-
-# number of up/down-regulated genes per time point
-vars <- c("de_24h", "de_48h", "de_72h", "de_96h")
-y <- reshape2::melt(x, id.vars = colnames(x)[!colnames(x) %in% vars], measure.vars = vars)
-y <- ddply(y, .variables = .(mgi_symbol), transform, 
-           id = paste0(variable[value==1], collapse = "."))
-y <- y[y$value ==1,]; ddply(y, .variables = .(id), summarize, 
-                            up = length(unique(mgi_symbol[direction == "Up-regulated"])),
-                            down = length(unique(mgi_symbol[direction == "Down-regulated"])))
-
-
-print("4.6) Correlation analysis (Xchr change) - known Xist regulators")
-
-print("4.6.1) Load data")
-load(paste0(path, "output/fig4_deXchrChangeHighLow/cor_Xchr.RData"))
-
-print("4.6.2) Subset to known regulators")
-regulators <- c("Nanog", "Klf2", "Klf4", "Prdm14", "Pou5f1", "Sox2", "Myc", "Zfp42", "Ctcf", "Tsix", "Yy1", "Rlim", "Ftx")
-temp <- sprmcor[sprmcor$Gene %in% regulators,] %>% as.data.frame()
-temp$detrate <- 1-temp$droprate
+print("7.4.2) Select genes significantly correlated to X-chromosome change for each time point")
+temp <- sprmcor %>% as.data.frame()
 temp$isX <- ifelse(temp$Chr %in% "X", "X-linked", "Autosomal")
-mypalette <- colorRampPalette(c("blue", "white", "red"))(1e3)
+temp$direction <- ifelse(temp$spr < 0, "Negative", "Positive")
+temp$direction <- factor(temp$direction, levels = c("Positive", "Negative"))
+sig_de <- temp[(temp$fdr <= de_threshold),]
 
-print("4.6.3) Gather data frame")
-features <- c("day", "Gene", "isX", "detrate", "spr", "fdr")
-temp_m <- gather(temp[, features], variable, value, 
-                 -day, -Gene, -isX, -detrate, -fdr)
-temp_m$group <- revalue(factor(temp_m$variable), replace = c("spr" = "Xchr corr."))
-temp_m$group <- factor(temp_m$group, levels = c("Xchr corr."))
+print("7.4.3) Plot - Summarize correlation analysis results with barplot")
+de_barplot <- ddply(sig_de, .variables = .(day, isX, direction), summarize, n = length(day))
+all <- expand.grid(unique(sprmcor$day), unique(de_barplot$isX), unique(de_barplot$direction)) 
+all$id <- apply(all, 1, function(x) paste(x, collapse = "_"))
+present <- apply(de_barplot[,1:3], 1, function(x) paste(x, collapse = "_"))
+missing <- cbind(all[!all$id %in% present, !colnames(all) %in% "id"], 0)
+colnames(missing) <- colnames(de_barplot)
+de_barplot_ext <- rbind(de_barplot, missing)
+de_barplot_ext$alpha_numb <- ifelse(de_barplot_ext$n>0, "yes", "no")
 
-print("4.6.4) Identify genes with significant correlations")
-temp_m$significant <- temp_m$fdr <= de_threshold
-temp_m <- temp_m %>% dplyr::arrange(fdr)
-temp_m$Gene <- factor(temp_m$Gene, levels = rev(regulators))
+g <- de_barplot_ext %>% 
+  ggplot() + 
+  theme_bw() + theme1 + 
+  facet_grid(.~isX) + 
+  geom_bar(aes(x = factor(day), y = n, fill = direction), stat = "identity", position=position_dodge()) + 
+  scale_fill_manual(values = c("red", "blue")) +
+  geom_text(aes(x = factor(day), y = n+1, group = direction, label = n), 
+            hjust = -.1,
+            color="black", position = position_dodge(0.9), size = geomtext_size, angle = 90, show.legend = FALSE) +
+  scale_y_continuous(limits = c(0, 295), breaks = seq(0, 250, by = 50)) +
+  labs(x = "Time [days]", y = "# Significantly correlated genes", 
+       fill = "Correlation with\nX-chromosome change")
+adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S7_D_DE_barplot_corrXchr.pdf"))
 
-print("4.6.5) Plot")
-# compute plot size by # of genes
-ngenes <- length(unique(temp_m$Gene))
-ph <- ngenes*0.3
-# plot
-g <- temp_m %>% 
+
+print("7.5) E/F: Heatmap - positive/negative regulators over time at day 1/2")
+
+fdr_threshold <- 0.05
+maxn <- 20
+
+print(paste0("7.5.1) Subset to genes with FDR<=", fdr_threshold, " and |rho|>=", cor_thr, " at d1 or d2"))
+
+sub <- sprmcor[(sprmcor$day %in% c(1, 2)),]
+sub_sig <- sub[sub$fdr <= fdr_threshold,]
+table(sub_sig$day, sub_sig$spr>0)
+summary(abs(sub_sig$spr[sub_sig$day == 1]))
+summary(abs(sub_sig$spr[sub_sig$day == 2]))
+
+print("7.5.2) Remove pseudogenes and X-linked genes with negative correlation")
+sub_sig$gene_biotype <- bm$gene_biotype[match(sub_sig$Gene, bm$mgi_symbol)]
+sub_sig <- sub_sig[!grepl(x = sub_sig$gene_biotype, pattern = "pseudogene"),]
+sub_sig <- sub_sig[!(sub_sig$Chr %in% "X" & sub_sig$spr<0),]
+
+print("7.5.2) Identify positive and negative regulators")
+
+positive <- sub_sig[sub_sig$spr > 0,] %>% dplyr::arrange(-abs(spr))
+pos_genes <- unique(as.character(positive$Gene))
+negative <- sub_sig[sub_sig$spr<0,] %>% dplyr::arrange(-abs(spr))
+neg_genes <- unique(as.character(negative$Gene))
+
+if(length(pos_genes)>maxn) pos_genes <- pos_genes[seq_len(maxn)]
+if(length(neg_genes)>maxn) neg_genes <- neg_genes[seq_len(maxn)]
+
+
+print("7.5.3) Plot results through heatmap")
+
+# positive regulators
+ph <- length(pos_genes)*0.3
+temp <- sprmcor[sprmcor$Gene %in% pos_genes,]; temp$Gene <- factor(temp$Gene, levels = rev(pos_genes))
+temp$significant <- temp$fdr <= fdr_threshold
+
+g <- temp %>% 
   ggplot() + 
   theme_bw() + theme1 +
-  facet_grid(.~group, scales = "free_y") + 
-  geom_point(aes(x = factor(day), y = Gene, fill = value, size = abs(value)), pch=22, stroke = 0) +
-  geom_point(data = temp_m[temp_m$significant == TRUE,], aes(x = factor(day), y = Gene), size = small_scattersize, color = "white", pch = 1) +
+  geom_point(aes(x = factor(day), y = Gene, fill = spr, size = abs(spr)), pch=22, stroke = 0) +
+  geom_point(data = temp[temp$significant == TRUE,], aes(x = factor(day), y = Gene), size = small_scattersize, color = "white", pch = 1) +
   scale_fill_gradient2(low="blue", mid="white", high="red", 
                        midpoint=0, breaks=seq(-0.5, 0.5, .25), limits=c(-0.51,0.51)) + 
   scale_radius(breaks = seq(0, 0.5, by = 0.25), limits = c(0, 0.5), range = c(0.1, 4)) +
-  labs(x = "Time [days]", y = "", fill = "Pearson's gene-wise correlation:\nrho(CPM_gene, X-chromosome change)", size = "Absolute correlation")
-adjust_size(g = g, panel_width_cm = 3, panel_height_cm = ph, savefile = paste0(outpath, "S4_F_PearsCorrToXistCPM_KnownRegulators.pdf"))
+  labs(x = "Time [days]", y = "", 
+       fill = "Spearman's gene-wise correlation:\nrho(CPM_gene, X-chromosome change)", 
+       size = "Absolute correlation",
+       title = "Positively correlated genes")
+adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, 
+            savefile = paste0(outpath, "S7_E_corrXchrChange_PositiveRegulators.pdf"), 
+            height = 3, width = 5)
+
+# negative regulators
+ph <- length(neg_genes)*0.3
+temp <- sprmcor[sprmcor$Gene %in% neg_genes,]; temp$Gene <- factor(temp$Gene, levels = rev(neg_genes))
+temp$significant <- temp$fdr <= fdr_threshold
+
+g <- temp %>% 
+  ggplot() + 
+  theme_bw() + theme1 +
+  geom_point(aes(x = factor(day), y = Gene, fill = spr, size = abs(spr)), pch=22, stroke = 0) +
+  geom_point(data = temp[temp$significant == TRUE,], aes(x = factor(day), y = Gene), size = small_scattersize, color = "white", pch = 1) +
+  scale_fill_gradient2(low="blue", mid="white", high="red", 
+                       midpoint=0, breaks=seq(-0.5, 0.5, .25), limits=c(-0.51,0.51)) + 
+  scale_radius(breaks = seq(0, 0.5, by = 0.25), limits = c(0, 0.5), range = c(0.1, 4)) +
+  labs(x = "Time [days]", y = "", 
+       fill = "Spearman's gene-wise correlation:\nrho(CPM_gene, X-chromosome change)", 
+       size = "Absolute correlation",
+       title = "Negatively correlated genes")
+adjust_size(g = g, panel_width_cm = 2.5, panel_height_cm = ph, 
+            savefile = paste0(outpath, "S7_F_corrXchrChange_NegativeRegulators.pdf"), 
+            height = 3, width = 5)
 
 
 
@@ -865,11 +1318,235 @@ adjust_size(g = g, panel_width_cm = 3, panel_height_cm = ph, savefile = paste0(o
 
 
 
-print("5) Supplementary figure 5: B6/Cast ratio for Autosomal and X-linked genes over time")
 
-print("5.1) A: B6/Cast ratio for Autosomal (all cells) and X-linked (Xist-Undetected cells) genes over time")
+print("8) Supplementary figure 8: Identification of putative XCI Xist regulators")
 
-print("5.1.1) Load data")
+
+print("8.1) A/B: UpSetR plots - concordance between Xist and dX analyses [d1 & d2]")
+
+f4path <- paste0(path, "output/fig4_deXistHighLow/")
+suppath <- paste0(path, "output/fig_Supplementary/")
+fdr_threshold <- 0.05
+
+print("8.1.1) Load DE and Correlation analyses results")
+
+results <- c()
+
+print("8.1.1.1) Xist - DE analysis")
+
+# load data
+load(paste0(f4path, "ALLresults.RData"))
+fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "fdr")
+xist_de <- all_de[(all_de$day %in% c(1,2)), fields]
+xist_de$value <- xist_de$coef
+xist_de$direction <- ifelse(xist_de$coef>0, "Up-regulated", "Down-regulated") 
+results <- data.frame(analysis = "DE", test = "Xist", 
+                      xist_de[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr", "value")])
+
+print("8.1.1.2) Xist - Correlation analysis")
+
+# load data
+load(paste0(f4path, "sprmcor.RData"))
+colnames(sprmcor) <- c("day", "mgi_symbol", "chromosome_name", "correlation", 
+                       "droprate", "droprate_Xist", "n", "pvalue_Xist", "fdr")
+fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "fdr")
+xist_cor <- sprmcor[(sprmcor$day %in% c(1,2)), fields]
+xist_cor$value <- xist_cor$correlation
+xist_cor$direction <- ifelse(xist_cor$correlation>0, "Up-regulated", "Down-regulated") 
+results <- rbind(results,
+                 data.frame(analysis = "Correlation", test = "Xist", 
+                            xist_cor[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr", "value")]))
+
+print("8.1.1.3) Xchr Change - DE analysis")
+
+# load data
+load(paste0(suppath, "XchrChange_HighLow_MAST.RData"))
+fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "fdr")
+xchr_de <- all_de[(all_de$day %in% c(1,2)), fields]
+xchr_de$value <- xchr_de$coef
+xchr_de$direction <- ifelse(xchr_de$coef>0, "Up-regulated", "Down-regulated") 
+results <- rbind(results,
+                 data.frame(analysis = "DE", test = "Xchr",
+                            xchr_de[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr", "value")]))
+
+print("8.1.1.4) Xchr Change - Correlation analysis")
+
+# load and filter data
+load(paste0(suppath, "cor_Xchr.RData"))
+colnames(sprmcor) <- c("day", "mgi_symbol", "chromosome_name", "correlation", 
+                       "droprate", "n", "ypos", "pvalue", "fdr")
+fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "fdr")
+xchr_cor <- sprmcor[(sprmcor$day %in% c(1,2)), fields]
+xchr_cor$value <- xchr_cor$correlation
+xchr_cor$direction <- ifelse(xchr_cor$correlation>0, "Up-regulated", "Down-regulated") 
+results <- rbind(results,
+                 data.frame(analysis = "Correlation", test = "Xchr",
+                            xchr_cor[, c("day", "chromosome_name", "mgi_symbol", "direction", "fdr", "value")]))
+
+print("8.1.1.5) Exclude pseudogenes and X-linked genes with significant negative correlation coef. or logFC")
+
+results$gene_biotype <- bm$gene_biotype[match(results$mgi_symbol, bm$mgi_symbol)]
+results <- results[!grepl(x = results$gene_biotype, pattern = "pseudogene"),]
+results <- results[!(results$chromosome_name %in% "X" & results$value < 0 & results$fdr <= fdr_threshold),]
+
+print("8.1.2) Define UpSetR data frame")
+
+upset <- results[!grepl(results$mgi_symbol, pattern = "^ERCC"),] %>%
+  dplyr::group_by(chromosome_name, mgi_symbol, day) %>%
+  dplyr::summarise(de_xist = as.numeric(fdr[analysis == "DE" & test == "Xist"] <= fdr_threshold),
+                   de_Xchr = as.numeric(fdr[analysis == "DE" & test == "Xchr"] <= fdr_threshold),
+                   cor_xist = as.numeric(fdr[analysis == "Correlation" & test == "Xist"] <= fdr_threshold),
+                   cor_Xchr = as.numeric(fdr[analysis == "Correlation" & test == "Xchr"] <= fdr_threshold)
+  )
+
+print("8.1.3) Plot")
+
+sets <- colnames(upset)[-seq_len(3)]
+
+# day 1
+x <- data.frame(upset[upset$day == 1,])
+pdf(file = paste0(outpath, "S8_A_UpSetR_d1.pdf"),
+    width = 4, height = 5, onefile = TRUE, useDingbats = FALSE)
+upset(x, 
+      main.bar.color = "black",
+      sets = sets,
+      order.by = "degree",
+      group.by = "degree",
+      keep.order = TRUE,
+      decreasing = FALSE,
+      mb.ratio = c(0.7, 0.3),
+      point.size = scattersize*10, line.size = linesize*2, text.scale = 1.5,
+      # mainbar.y.max = maxbar, 
+      mainbar.y.label = "Number of significant genes at d1\nacross the four analyses"
+)
+dev.off()
+
+# day 2
+x <- data.frame(upset[upset$day == 2,])
+pdf(file = paste0(outpath, "S8_B_UpSetR_d2.pdf"),
+    width = 4, height = 5, onefile = TRUE, useDingbats = FALSE)
+upset(x, 
+      main.bar.color = "black",
+      sets = sets,
+      order.by = "degree",
+      group.by = "degree",
+      keep.order = TRUE,
+      decreasing = FALSE,
+      mb.ratio = c(0.7, 0.3),
+      point.size = scattersize*10, line.size = linesize*2, text.scale = 1.5,
+      # mainbar.y.max = maxbar, 
+      mainbar.y.label = "Number of significant genes at d1\nacross the four analyses"
+)
+dev.off()
+
+
+print("8.2) C: DE analyses - known Xist regulators")
+
+print("8.2.1) Load Xist DE results")
+
+load(paste0(path, "output/fig4_deXistHighLow/ALLresults.RData"))
+xist <- all_de[(all_de$mgi_symbol %in% regulators)&(all_de$day %in% 1:2),] %>% as.data.frame()
+features <- c("day", "mgi_symbol", "coef", "fdr")
+xist <- xist[, features]
+colnames(xist) <- c("day", "Gene", "value", "fdr")
+
+print("8.2.2) Load dX DE results")
+
+load(paste0(path, "output/fig_Supplementary/XchrChange_HighLow_MAST.RData"))
+dx <- all_de[(all_de$mgi_symbol %in% regulators)&(all_de$day %in% 1:2),] %>% as.data.frame()
+features <- c("day", "mgi_symbol", "coef", "fdr")
+dx <- dx[, features]
+colnames(dx) <- c("day", "Gene", "value", "fdr")
+
+print("8.2.3) Plot")
+
+de <- rbind(data.frame(xist, type = "Xist"),
+            data.frame(dx, type = "dX"))
+de$Gene <- factor(de$Gene, levels = rev(regulators))
+de$sig_label <- ifelse(de$fdr <= 0.05, "*", "")
+h <- length(unique(de$Gene))*0.3
+w <- length(unique(de$day))*0.5
+
+g <- de %>%
+  ggplot() +
+  theme_bw() + theme1 + 
+  facet_grid(.~type) +
+  geom_tile(aes(x = factor(day), y = Gene, fill = value), color = "white") +
+  geom_text(aes(x = factor(day), y = Gene, label = sig_label), color = "white", size = geomtext_size) +
+  scale_fill_gradient2(low = "#0571b0", high = "#ca0020", mid = "white", 
+                       midpoint = 0, limit = c(-3, 3),
+                       name= "log2FC") +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(x = "Time [days]",
+       y = "")
+adjust_size(g = g, panel_width_cm = w, panel_height_cm = h, 
+            savefile = paste0(outpath, "S8_C_DElogFC_KnownRegulators.pdf"), 
+            height = 3, width = 5)
+
+
+print("8.3) D: Correlation analyses - known Xist regulators")
+
+regulators <- c("Nanog", "Klf2", "Klf4", "Prdm14", "Pou5f1", "Sox2", "Myc", "Zfp42", "Ctcf", "Tsix", "Yy1", "Rlim", "Ftx")
+
+print("8.3.1) Load Xist correlation results")
+
+load(paste0(path, "output/fig4_deXistHighLow/sprmcor.RData"))
+xist <- sprmcor[(sprmcor$Gene %in% regulators)&(sprmcor$day %in% 1:2),] %>% as.data.frame()
+features <- c("day", "Gene", "spr_Xist", "fdr_Xist")
+xist <- xist[, features]
+colnames(xist) <- c("day", "Gene", "value", "fdr")
+
+
+print("8.3.2) Load dX correlation results")
+
+load(paste0(outpath, "cor_Xchr.RData"))
+dx <- sprmcor[(sprmcor$Gene %in% regulators)&(sprmcor$day %in% 1:2),] %>% as.data.frame()
+features <- c("day", "Gene", "spr", "fdr")
+dx <- dx[, features]
+colnames(dx) <- c("day", "Gene", "value", "fdr")
+
+print("8.3.3) Plot")
+
+cor <- rbind(data.frame(xist, type = "Xist"),
+             data.frame(dx, type = "dX"))
+cor$Gene <- factor(cor$Gene, levels = rev(regulators))
+cor$sig_label <- ifelse(cor$fdr <= 0.05, "*", "")
+h <- length(unique(cor$Gene))*0.3
+w <- length(unique(cor$day))*0.5
+
+g <- cor %>%
+  ggplot() +
+  theme_bw() + theme1 + 
+  facet_grid(.~type) +
+  geom_tile(aes(x = factor(day), y = Gene, fill = value), color = "white") +
+  geom_text(aes(x = factor(day), y = Gene, label = sig_label), color = "white", size = geomtext_size) +
+  scale_fill_gradient2(low = "#0571b0", high = "#ca0020", mid = "white", 
+                       midpoint = 0, limit = c(-0.5, 0.5),
+                       name=expression(rho)) +
+  scale_x_discrete(expand = c(0, 0)) +
+  scale_y_discrete(expand = c(0, 0)) +
+  labs(x = "Time [days]",
+       y = "")
+adjust_size(g = g, panel_width_cm = w, panel_height_cm = h, 
+            savefile = paste0(outpath, "S8_D_SpearmanCorrelation_KnownRegulators.pdf"), 
+            height = 3, width = 5)
+
+
+
+
+
+
+
+
+
+
+print("9) Supplementary figure 9: Gene Silencing analysis")
+
+
+print("9.1) A: B6/Cast ratio for Autosomal (all cells) and X-linked (Xist-Undetected cells) genes over time")
+
+print("9.1.1) Load data")
 load(paste0(datapath, "DGE_B6.RData")); b6 <- dge
 load(paste0(datapath, "DGE_Cast.RData")); cast <- dge
 df_as <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
@@ -888,8 +1565,8 @@ df_as$Xist_classification <- revalue(factor(df_as$Xist), replace = c("Undetected
 lev_ref <- c("Xist\nUndetected", "Low", "Skewed", "BA", "Xist-MA\n(Xi=B6)", "Xist-MA\n(Xi=Cast)")
 df_as$Xist_classification <- factor(df_as$Xist_classification, levels = lev_ref)
 
-print("5.1.2) Compute gene-wise B6/Cast ratios for each Xist group")
-temp <- df_as %>%
+print("9.1.2) Compute gene-wise B6/Cast ratios for each Xist group")
+temp <- df_as[!df_as$day %in% 0,] %>%
   dplyr::group_by(day, Xist_classification, Gene, isX) %>% 
   dplyr::summarise(b6_cast_ratio = (sum(b6) + 0.01)/(sum(cast) + 0.01))
 summary(temp$b6_cast_ratio)
@@ -898,7 +1575,7 @@ temp_median <- temp %>%
   dplyr::arrange(Xist_classification)
 temp$group <- ifelse(temp$isX == "Autosomal", "Autosomal", paste0("X-linked\n", temp$Xist_classification))
 
-print("5.1.3) Plot")
+print("9.1.3) Plot")
 # setting y-limits to zoom in without changing boxplot -> NA values 
 remove_Xistgroups <- c("Low", "Skewed", "BA")
 g <- temp[temp$group %in% c("X-linked\nXist\nUndetected", "Autosomal"),] %>%  
@@ -908,15 +1585,18 @@ g <- temp[temp$group %in% c("X-linked\nXist\nUndetected", "Autosomal"),] %>%
   geom_boxplot(aes(x = group, y = log2(b6_cast_ratio), color = factor(day)), size = violin_box_size,
                outlier.size = outliersize, outlier.alpha = 1/4, outlier.shape = NA,
                position = position_dodge2(preserve = "single")) + 
-  scale_color_manual(values=time_colors) +
+  scale_color_manual(values=time_colors[-1]) +
   labs(y = expression("["*sum[g]*"("*B6[gc]*") + 0.01] / ["*sum[g]*"("*Cast[gc]*") + 0.01] ["*log[2]*"(value)]"), x = "", fill = "",
        title = "Gene-wise log2(total B6/total Cast) expression", color = "Time [days]") +
   scale_y_continuous(breaks = seq(-10, 10, by = 1), limits = c(-3, 3))
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "S5_A_B6CastRatio_XistclassDay.pdf"))
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S9_A_B6CastRatio_XistclassDay.pdf"))
 
-print("5.2) B: B6/Cast ratio for X-linked genes (grouping Xist-Undetected, B6-MA or Cast-MA cells) over time")
 
-print("5.2.1) Plot")
+
+print("9.2) B: B6/Cast ratio for X-linked genes (grouping Xist-Undetected, B6-MA or Cast-MA cells) over time")
+
+print("9.2.1) Plot")
 # setting y-limits to zoom in without changing boxplot -> NA values 
 Xlinked_groups <- c("X-linked\nXist\nUndetected", "X-linked\nXist-MA\n(Xi=B6)", "X-linked\nXist-MA\n(Xi=Cast)")
 g <- temp[temp$group %in% Xlinked_groups,] %>%  
@@ -926,32 +1606,31 @@ g <- temp[temp$group %in% Xlinked_groups,] %>%
   geom_boxplot(aes(x = group, y = log2(b6_cast_ratio), color = factor(day)), size = violin_box_size,
                outlier.size = outliersize, outlier.alpha = 1/4, outlier.shape = NA,
                position = position_dodge2(preserve = "single")) + 
-  scale_color_manual(values=time_colors) +
+  scale_color_manual(values=time_colors[-1]) +
   labs(y = expression("["*sum[g]*"("*B6[gc]*") + 0.01] / ["*sum[g]*"("*Cast[gc]*") + 0.01] ["*log[2]*"(value)]"), x = "", fill = "",
        title = "Gene-wise log2(total B6/total Cast) expression", color = "Time [days]") +
   scale_y_continuous(breaks = seq(-10, 10, by = 5), limits = c(-7, 12))
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "S5_B_B6CastRatio_XistclassDay_Xlinked.pdf"))
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S9_B_B6CastRatio_XistclassDay_Xlinked.pdf"))
 
 
-print("5.3) C: Differential silencing analysis - varying XP threshold and number of bins")
 
-print("5.3.1) Load function")
-XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast_MA"), idplot = "B6", useCounts = TRUE,
-                                      nbins = 5, mincount = 20, mincells = 5, includeXistUnd_firstbin = TRUE,
-                                      offset_XiXa = 0.1, logXiXa = TRUE, #XiXa computing
-                                      bsl_count = TRUE, XistUnd_XCRthr_low = 0.4, XistUnd_XCRthr_high = 0.6, XistUndTime = "0hrs", 
-                                      outpath = report_path, kseed = 0, kiter = 10^5, minbin = 3,
-                                      normalize2baseline = TRUE, mincount_cellfit = 5, mincell_cellfit = 10, mincount_cellfit_bin=5,
-                                      percentageXinactive = TRUE, equallysized = TRUE, minsilencing_perc = 10, zeroIntercept = FALSE,
-                                      weighted = TRUE){
+print("9.3) C: Differential silencing analysis - varying XP threshold and number of bins")
+
+print("9.3.1) Load function")
+diff_silencing <- diff_silencing <- function(x = df_sk, 
+                                             minsilencing_perc = 10,
+                                             nbins = 10, minbin = 5, mincount = 25, mincells = 5){
   
   print(paste0("0) subset to Xist-MA cells only & define inactive counts..."))
+  XistMAgroup <- c("BL6_MA", "Cast_MA")
   id <- paste0(x$Time, "_", x$Cell)
   temp <- data.frame(id, x)
   data <- temp[temp$Xist %in% XistMAgroup,]
   data <- data[data$both > 0,]
   
   print(paste0("0bis) compute X silencing percentage..."))
+  offset_XiXa <- 0.1
   data <- data[!data$Gene %in% c("Xist"),] %>% #don't include Xist in XCR
     dplyr::group_by(id) %>%
     dplyr::mutate(b6_X = sum(b6[Chromosome == "X"]),
@@ -963,14 +1642,8 @@ XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast
   data <- data[data$AXCR >= minsilencing_perc,]
   
   print(paste0("0quat) breaks for percentage of silencing"))
-  if(!equallysized){
-    break_XCR <- seq(0, 100, length = nbins+1)
-    levels_bin <- levels(cut(seq(0, 100, by = 1), breaks = break_XCR, include.lowest = TRUE))
-    data$bin_XCR <- cut(data$AXCR, breaks = break_XCR, include.lowest = TRUE)
-  }else{
-    data$bin_XCR <- quantileCut(x = data$AXCR, n = nbins)
-    levels_bin <- levels(data$bin_XCR)
-  }
+  data$bin_XCR <- quantileCut(x = data$AXCR, n = nbins)
+  levels_bin <- levels(data$bin_XCR)
   
   print(paste0("1) define metacell group based on nbins and AXCR and store # of cells..."))
   data <- ddply(data, .variables = .(bin_XCR), transform, bin_ncells = length(unique(id)))
@@ -1000,6 +1673,7 @@ XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast
   data_filt <- data[condition,]
   
   print(paste0("5) Store the baseline and compute Xi/Xa gene-skewing..."))
+  XistUnd_XCRthr_low <- 0.4; XistUnd_XCRthr_high <- 0.6; XistUndTime <- "0hrs"
   bsl <- temp[(temp$Xist %in% "Undetected") & 
                 (temp$Time %in% XistUndTime) & 
                 (temp$XCR >= XistUnd_XCRthr_low) & 
@@ -1024,6 +1698,7 @@ XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast
   
   ### single cell
   print(paste0("6bis) normalize cell-wise XiXa ratios to baseline (only cells with UMI>", mincount_cellfit, "..."))
+  mincount_cellfit_bin <- 5
   data_cell <- data_cell[data_cell$both>mincount_cellfit_bin,]
   data_cell$XiXa <- (data_cell$inactive_count + offset_XiXa)/(data_cell$active_count + offset_XiXa)
   m <- match(data_cell$Gene, baseline$Gene); table(is.na(m))
@@ -1031,20 +1706,10 @@ XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast
   data_cell <- data_cell[!is.na(data_cell$baseline_XiXa),]
   data_cell$baseline_XiXa[data_cell$Xist == "Cast_MA"] <- 1/data_cell$baseline_XiXa[data_cell$Xist == "Cast_MA"]
   data_cell$XiXa_ratio_XistUnd <- data_cell$XiXa/data_cell$baseline_XiXa
-  
-  print(paste0("6ter) filter cell-wise values separately"))
-  both_genes <- data_cell %>% dplyr::group_by(Gene) %>% dplyr::summarise(n = length(unique(Xist)))
-  data_cell_fit <- data_cell[data_cell$Gene %in% as.character(both_genes$Gene[both_genes$n==2]),]
-  select_genes <- data_cell_fit %>% 
-    dplyr::group_by(Xist, Gene) %>% dplyr::summarise(ncells = sum(both>mincount_cellfit)) %>%
-    dplyr::group_by(Gene) %>% dplyr::summarise(n_b6 = ncells[Xist=="BL6_MA"], n_cast = ncells[Xist=="Cast_MA"])
-  which_genes <- as.character(select_genes$Gene[(select_genes$n_b6 >= mincell_cellfit)&(select_genes$n_cast >= mincell_cellfit)])
-  data_cell_fit <- data_cell_fit[(data_cell_fit$Gene %in% which_genes)&(data_cell_fit$both > mincount_cellfit),]
   ### single cell
   
   print(paste0("7) take log ratios"))
   data_filt$logXiXa <- log2(data_filt$XiXa_ratio_XistUnd)
-  data_cell_fit$logXiXa <- log2(data_cell_fit$XiXa_ratio_XistUnd)
   
   print(paste0("7bis) Remove genes that don't have at least ", minbin, " observations per Xist-MA group..."))
   data_filt <- data.frame(data_filt)
@@ -1063,245 +1728,66 @@ XiXa_metacell_ratio_final <- function(x = df_sk, XistMAgroup = c("BL6_MA", "Cast
   
   
   print(paste0("8) Fit linear model with free intercept for each gene separating fits for Xist-MA Cast/B6 cells..."))
-  allgenes <- unique(c(as.character(data_filt$Gene), as.character(data_cell_fit$Gene)))
-  # allgenes <- unique(as.character(unique(res_either$Gene))); common_genes <- unique(as.character(res_keep$Gene))
+  allgenes <- unique(as.character(data_filt$Gene))
   
-  model_fit <- model_fit_sc <- c()
-  if(zeroIntercept){
+  model_fit <- c()
+  
+  for(i in seq_len(length(allgenes))){
+    gene <- allgenes[i]
     
-    for(i in seq_len(length(allgenes))){
-      gene <- allgenes[i]
+    temp <- data_filt[data_filt$Gene %in% gene,]
+    
+    # bin analysis
+    if((length(unique(temp$Xist))==2) & (gene %in% test_both)){
+      complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, data = temp)
+      oneslope <- lm(logXiXa ~ 0 + AXCR, data = temp)
       
-      temp <- data_filt[data_filt$Gene %in% gene,]
-      temp$w <- temp$sumXa_count + temp$sumXi_count
+      int_b6 <- 0; slope_b6 <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
+      int_cast <- 0; slope_cast <- complete$coefficients[c("AXCR")]
       
-      temp_sc <- data_cell_fit[data_cell_fit$Gene %in% gene,]
-      temp_sc$w <- temp_sc$inactive_count + temp_sc$active_count
-      
-      # bin analysis
-      if((length(unique(temp$Xist))==2) & (gene %in% test_both)){
-        
-        if(weighted){
-          
-          complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, weights = w, data = temp)
-          oneslope <- lm(logXiXa ~ 0 + AXCR, weights = w, data = temp)
-          
-          int_b6 <- 0; slope_b6 <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
-          int_cast <- 0; slope_cast <- complete$coefficients[c("AXCR")]
-          
-          anv <- anova(oneslope, complete)
-          slope_pvalue <- anv$`Pr(>F)`[2]
-          
-        }else{
-          complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, data = temp)
-          oneslope <- lm(logXiXa ~ 0 + AXCR, data = temp)
-          
-          int_b6 <- 0; slope_b6 <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
-          int_cast <- 0; slope_cast <- complete$coefficients[c("AXCR")]
-          
-          anv <- anova(oneslope, complete)
-          slope_pvalue <- anv$`Pr(>F)`[2]
-        }
-      }else{
-        int_cast <- int_b6 <- slope_cast <- slope_b6 <- slope_pvalue <- NA
-      }
-      
-      #single allele analysis
-      
-      # test b6
-      if(gene %in% test_b6){
-        if(weighted){
-          fit <- lm(logXiXa ~ 0 + AXCR, weights = w, data = temp[temp$Xist == "BL6_MA",])
-        }else{
-          fit <- lm(logXiXa ~ 0 + AXCR, data = temp[temp$Xist == "BL6_MA",])
-        }
-        int_b6 <- 0; slope_b6 <- fit$coefficients["AXCR"]; bic_b6 <- BIC(fit)
-      }else{
-        int_b6 <- slope_b6 <- bic_b6 <- NA
-      }
-      
-      # test cast
-      if(gene %in% test_cast){
-        if(weighted){
-          fit <- lm(logXiXa ~ 0 + AXCR, weights = w, data = temp[temp$Xist == "Cast_MA",])
-        }else{
-          fit <- lm(logXiXa ~ 0 + AXCR, data = temp[temp$Xist == "Cast_MA",])
-        }
-        int_cast <- 0; slope_cast <- fit$coefficients["AXCR"]; bic_cast <- BIC(fit)
-      }else{
-        int_cast <- slope_cast <- bic_cast <- NA
-      }
-      
-      # single cell analysis
-      if(length(unique(temp_sc$Xist))==2){
-        
-        if(weighted){
-          
-          complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, weights = w, data = temp_sc)
-          oneslope <- lm(logXiXa ~ 0 + AXCR, weights = w, data = temp_sc)
-          
-          int_b6_sc <- 0; slope_b6_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
-          int_cast_sc <- 0; slope_cast_sc <- complete$coefficients[c("AXCR")]
-          
-          anv <- anova(oneslope, complete)
-          slope_pvalue_sc <- anv$`Pr(>F)`[2]
-          
-        }else{
-          complete <- lm(logXiXa ~ 0 + AXCR + AXCR:Xist, data = temp_sc)
-          oneslope <- lm(logXiXa ~ 0 + AXCR, data = temp_sc)
-          
-          int_b6_sc <- 0; slope_b6_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistBL6_MA")])
-          int_cast_sc <- 0; slope_cast_sc <- complete$coefficients[c("AXCR")]
-          
-          anv <- anova(oneslope, complete)
-          slope_pvalue_sc <- anv$`Pr(>F)`[2]
-        }
-      }else{
-        int_cast_sc <- int_b6_sc <- slope_cast_sc <- slope_b6_sc <- slope_pvalue_sc <- NA
-      }
-      
-      # store results
-      model_fit <- rbind(model_fit, 
-                         data.frame(Gene = gene, 
-                                    int_b6 = int_b6, slope_b6 = slope_b6,
-                                    int_cast = int_cast, slope_cast = slope_cast,
-                                    slope_pvalue = slope_pvalue))
-      model_fit_sc <- rbind(model_fit_sc, 
-                            data.frame(Gene = gene, 
-                                       int_b6 = int_b6_sc, slope_b6 = slope_b6_sc,
-                                       int_cast = int_cast_sc, slope_cast = slope_cast_sc,
-                                       slope_pvalue = slope_pvalue_sc))
+      anv <- anova(oneslope, complete)
+      slope_pvalue <- anv$`Pr(>F)`[2]
+    }else{
+      int_cast <- int_b6 <- slope_cast <- slope_b6 <- slope_pvalue <- NA
     }
     
-  }else{
+    #single allele analysis
     
-    for(i in seq_len(length(allgenes))){
-      gene <- allgenes[i]
-      
-      temp <- data_filt[data_filt$Gene %in% gene,]
-      temp$w <- temp$sumXa_count + temp$sumXi_count
-      
-      temp_sc <- data_cell_fit[data_cell_fit$Gene %in% gene,]
-      temp_sc$w <- temp_sc$inactive_count + temp_sc$active_count
-      
-      # bin analysis
-      if(length(unique(temp$Xist))==2){
-        
-        if(weighted){
-          
-          complete <- lm(logXiXa ~ AXCR*Xist, weights = w, data = temp)
-          oneslope <- lm(logXiXa ~ AXCR, weights = w, data = temp)
-          
-          int_b6 <- complete$coefficients["(Intercept)"]
-          slope_b6 <- complete$coefficients["AXCR"] 
-          int_cast <- sum(complete$coefficients[c("(Intercept)", "XistCast_MA")])
-          slope_cast <- sum(complete$coefficients[c("AXCR", "AXCR:XistCast_MA")])
-          anv <- anova(oneslope, complete)
-          slope_pvalue <- anv$`Pr(>F)`[2]
-          
-        }else{
-          complete <- lm(logXiXa ~ AXCR*Xist, data = temp)
-          oneslope <- lm(logXiXa ~ AXCR, data = temp)
-          
-          int_b6 <- complete$coefficients["(Intercept)"]
-          slope_b6 <- complete$coefficients["AXCR"] 
-          int_cast <- sum(complete$coefficients[c("(Intercept)", "XistCast_MA")])
-          slope_cast <- sum(complete$coefficients[c("AXCR", "AXCR:XistCast_MA")])
-          anv <- anova(oneslope, complete)
-          slope_pvalue <- anv$`Pr(>F)`[2]
-        }
-      }else{
-        int_cast <- int_b6 <- slope_cast <- slope_b6 <- slope_pvalue <- NA
-      }
-      
-      #single allele analysis
-      
-      # test b6
-      if(gene %in% test_b6){
-        if(weighted){
-          fit <- lm(logXiXa ~ AXCR, weights = w, data = temp[temp$Xist == "BL6_MA",])
-        }else{
-          fit <- lm(logXiXa ~ AXCR, data = temp[temp$Xist == "BL6_MA",])
-        }
-        int_b6 <- fit$coefficient["(Intercept)"]; slope_b6 <- fit$coefficients["AXCR"]; bic_b6 <- BIC(fit)
-      }else{
-        int_b6 <- slope_b6 <- bic_b6 <- NA
-      }
-      
-      # test cast
-      if(gene %in% test_cast){
-        if(weighted){
-          fit <- lm(logXiXa ~ AXCR, weights = w, data = temp[temp$Xist == "Cast_MA",])
-        }else{
-          fit <- lm(logXiXa ~ AXCR, data = temp[temp$Xist == "Cast_MA",])
-        }
-        int_cast <- fit$coefficient["(Intercept)"]; slope_cast <- fit$coefficients["AXCR"]; bic_cast <- BIC(fit)
-      }else{
-        int_cast <- slope_cast <- bic_cast <- NA
-      }
-      
-      # single cell analysis
-      if(length(unique(temp_sc$Xist))==2){
-        
-        if(weighted){
-          
-          complete <- lm(logXiXa ~ AXCR*Xist, weights = w, data = temp_sc)
-          oneslope <- lm(logXiXa ~ AXCR, weights = w, data = temp_sc)
-          
-          int_b6_sc <- complete$coefficients["(Intercept)"]
-          slope_b6_sc <- complete$coefficients["AXCR"] 
-          int_cast_sc <- sum(complete$coefficients[c("(Intercept)", "XistCast_MA")])
-          slope_cast_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistCast_MA")])
-          anv <- anova(oneslope, complete)
-          slope_pvalue_sc <- anv$`Pr(>F)`[2]
-          
-        }else{
-          complete <- lm(logXiXa ~ AXCR*Xist, data = temp_sc)
-          oneslope <- lm(logXiXa ~ AXCR, data = temp_sc)
-          
-          int_b6_sc <- complete$coefficients["(Intercept)"]
-          slope_b6_sc <- complete$coefficients["AXCR"] 
-          int_cast_sc <- sum(complete$coefficients[c("(Intercept)", "XistCast_MA")])
-          slope_cast_sc <- sum(complete$coefficients[c("AXCR", "AXCR:XistCast_MA")])
-          anv <- anova(oneslope, complete)
-          slope_pvalue_sc <- anv$`Pr(>F)`[2]
-        }
-      }else{
-        int_cast_sc <- int_b6_sc <- slope_cast_sc <- slope_b6_sc <- slope_pvalue_sc <- NA
-      }
-      
-      # store results
-      model_fit <- rbind(model_fit, 
-                         data.frame(Gene = gene, 
-                                    int_b6 = int_b6, slope_b6 = slope_b6,
-                                    int_cast = int_cast, slope_cast = slope_cast,
-                                    slope_pvalue = slope_pvalue))
-      model_fit_sc <- rbind(model_fit_sc, 
-                            data.frame(Gene = gene, 
-                                       int_b6 = int_b6_sc, slope_b6 = slope_b6_sc,
-                                       int_cast = int_cast_sc, slope_cast = slope_cast_sc,
-                                       slope_pvalue = slope_pvalue_sc))
+    # test b6
+    if(gene %in% test_b6){
+      fit <- lm(logXiXa ~ 0 + AXCR, data = temp[temp$Xist == "BL6_MA",])
+      int_b6 <- 0; slope_b6 <- fit$coefficients["AXCR"]; bic_b6 <- BIC(fit)
+    }else{
+      int_b6 <- slope_b6 <- bic_b6 <- NA
     }
     
+    # test cast
+    if(gene %in% test_cast){
+      fit <- lm(logXiXa ~ 0 + AXCR, data = temp[temp$Xist == "Cast_MA",])
+      int_cast <- 0; slope_cast <- fit$coefficients["AXCR"]; bic_cast <- BIC(fit)
+    }else{
+      int_cast <- slope_cast <- bic_cast <- NA
+    }
+    
+    # store results
+    model_fit <- rbind(model_fit, 
+                       data.frame(Gene = gene, 
+                                  int_b6 = int_b6, slope_b6 = slope_b6,
+                                  int_cast = int_cast, slope_cast = slope_cast,
+                                  slope_pvalue = slope_pvalue))
   }
   model_fit <- model_fit[order(model_fit$slope_pvalue, decreasing = FALSE),]
   model_fit$FDR <- p.adjust(model_fit$slope_pvalue, method = "BH")
   
-  model_fit_sc <- model_fit_sc[order(model_fit_sc$slope_pvalue, decreasing = FALSE),]
-  model_fit_sc$FDR <- p.adjust(model_fit_sc$slope_pvalue, method = "BH")
-  
   print(paste0("9) Return results..."))
   return <- list(model_fit = model_fit,
-                 model_fit_sc = model_fit_sc,
                  baseline = baseline, 
                  data = data_filt,
-                 data_cell = data_cell, 
-                 data_cell_fit = data_cell_fit)
+                 data_cell = data_cell)
   return(return)
 }
 
-
-print("5.3.2) Load data")
+print("9.3.2) Load data")
 load(paste0(datapath, "DGE_B6.RData")); b6 <- dge
 load(paste0(datapath, "DGE_Cast.RData")); cast <- dge
 df_as <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
@@ -1324,20 +1810,13 @@ df_sk <- ddply(df_as[df_as$Chromosome == "X",], .variables = .(Time, Cell), tran
                cast_X = sum(cast[Gene != "Xist"]))
 df_sk$XCR <- df_sk$b6_X/(df_sk$b6_X + df_sk$cast_X)
 
-print("5.3.3) Launch function varying XP threshold")
+print("9.3.3) Launch function varying XP threshold")
 sigthreshold <- 0.05
-mincount <- 25; nbins <- 10
-mincells <- 5; minbin <- 5; minsilencing_perc <- 10; mincount_cellfit_bin <- 5
-mincount_cellfit <- 5; mincell_cellfit <- 10
-XistUndTime <- "0hrs"; XistUnd_XCRthr_low <- 0.4; XistUnd_XCRthr_high <- 0.6
-equallysized <- TRUE; zeroIntercept <- TRUE; weighted <- FALSE
 
 results <- c()
 for(minsilencing_perc in seq(0, 20, by = 2)){
-  binresults <- XiXa_metacell_ratio_final(x = df_sk, mincount = mincount, nbins = nbins, minbin = minbin, mincells = mincells,
-                                          minsilencing_perc = minsilencing_perc, mincount_cellfit_bin = mincount_cellfit_bin,
-                                          mincount_cellfit = mincount_cellfit, mincell_cellfit = mincell_cellfit,
-                                          equallysized = equallysized, zeroIntercept = zeroIntercept, weighted = weighted)
+  # run function
+  binresults <- diff_silencing(x = df_sk, minsilencing_perc = minsilencing_perc)
   
   # store results
   x <- binresults$model_fit[!is.na(binresults$model_fit$FDR),]
@@ -1347,7 +1826,7 @@ for(minsilencing_perc in seq(0, 20, by = 2)){
 }
 results[results$FDR <= sigthreshold,] %>% arrange(silencing_threshold_percentage, FDR)
 
-print("5.3.4) Plot")
+print("9.3.4) Plot")
 
 # plot genes with 20 smallest FDR values
 temp <- results %>% dplyr::group_by(Gene) %>% dplyr::summarise(minFDR = min(FDR[!is.na(FDR)])) %>% arrange(minFDR)
@@ -1374,23 +1853,17 @@ g <- temp %>%
   labs(x = "", y = "", color = "Significance") +
   theme(axis.text.x = element_text(angle = 90))
 adjust_size(g = g, panel_width_cm = 4, panel_height_cm = ph, 
-            savefile = paste0(outpath, "S5_C_DSanalysis_varyXPthreshold.pdf"), 
+            savefile = paste0(outpath, "S9_C_DSanalysis_varyXPthreshold.pdf"), 
             height = 10, width = 5)
 
-print("5.3.5) Launch function varying number of bins")
-sigthreshold <- 0.05
-mincount <- 25; nbins <- 10
-mincells <- 5; minbin <- 5; minsilencing_perc <- 10; mincount_cellfit_bin <- 5
-mincount_cellfit <- 5; mincell_cellfit <- 10
-XistUndTime <- "0hrs"; XistUnd_XCRthr_low <- 0.4; XistUnd_XCRthr_high <- 0.6
-equallysized <- TRUE; zeroIntercept <- TRUE; weighted <- FALSE
+print("9.3.5) Launch function varying number of bins")
 
+sigthreshold <- 0.05
 results <- c()
 for(nbins in seq(6, 20, by = 2)){
-  binresults <- XiXa_metacell_ratio_final(x = df_sk, mincount = mincount, nbins = nbins, minbin = minbin, mincells = mincells,
-                                          minsilencing_perc = minsilencing_perc, mincount_cellfit_bin = mincount_cellfit_bin,
-                                          mincount_cellfit = mincount_cellfit, mincell_cellfit = mincell_cellfit,
-                                          equallysized = equallysized, zeroIntercept = zeroIntercept, weighted = weighted)
+  # run function
+  binresults <- diff_silencing(x = df_sk, nbins = nbins)
+  
   # store results
   x <- binresults$model_fit[!is.na(binresults$model_fit$FDR),]
   variables <- c("Gene", "slope_b6", "slope_cast", "FDR")
@@ -1399,7 +1872,7 @@ for(nbins in seq(6, 20, by = 2)){
 }
 results[results$FDR <= sigthreshold,] %>% arrange(nbins, FDR)
 
-print("5.3.6) Plot")
+print("9.3.6) Plot")
 
 # plot genes with 20 smallest FDR values
 temp <- results %>% dplyr::group_by(Gene) %>% dplyr::summarise(minFDR = min(FDR[!is.na(FDR)])) %>% arrange(minFDR)
@@ -1426,7 +1899,7 @@ g <- temp %>%
   labs(x = "", y = "", color = "Significance") +
   theme(axis.text.x = element_text(angle = 90))
 adjust_size(g = g, panel_width_cm = 4, panel_height_cm = ph, 
-            savefile = paste0(outpath, "S5_D_DSanalysis_varyNbins.pdf"), 
+            savefile = paste0(outpath, "S9_D_DSanalysis_varyNbins.pdf"), 
             height = 10, width = 5)
 
 
@@ -1437,11 +1910,12 @@ adjust_size(g = g, panel_width_cm = 4, panel_height_cm = ph,
 
 
 
-print("6) Supplementary figure 7: Experimental validation (Pyrosequencing, qPCR, RNA-FISH) on dXic line")
 
-print("6.1) A: Pyrosequencing - Xist B6-ratio on dXic lines")
+print("10) Supplementary figure 11: Independent validation of differential silencing dynamics")
 
-print("6.1.1) Load data")
+print("10.1) A: Pyrosequencing - Xist B6-ratio on dXic lines")
+
+print("10.1.1) Load data")
 file <- paste0(datapath, "validation_experiments.txt")
 data <- data.frame(read.table(file = file, header = T, sep = "\t"))
 data$group <- revalue(as.factor(as.character(data$CellLine)), 
@@ -1456,7 +1930,7 @@ hits <- c("Klhl13", "Pir", "Hprt")
 pyroseq$is_hit <- ifelse(pyroseq$Gene %in% hits, "DS gene", "Control gene")
 pyroseq$B6SNPfreq <- 100-pyroseq$Value
 
-print("6.1.2) Plot")
+print("10.1.2) Plot")
 g <- pyroseq[pyroseq$Gene %in% "Xist",] %>%
   ggplot(aes(x = factor(Day), y = B6SNPfreq, color = group, fill = group)) +
   theme_bw() + theme1 +  
@@ -1472,17 +1946,17 @@ g <- pyroseq[pyroseq$Gene %in% "Xist",] %>%
        title = "Xist (Pyrosequencing)") +
   scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 100))
 adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S7_A_PyrodXic_Xist_B6ratio.pdf"), 
+            savefile = paste0(outpath, "S11_A_PyrodXic_Xist_B6ratio.pdf"), 
             width = 3, height = 2)
 
 
-print("6.2) B: qPCR - Xist relative expression")
+print("10.2) B: qPCR - Xist relative expression")
 
-print("6.2.1) Load data")
+print("10.2.1) Load data")
 qpcr <- data[(data$Experiment %in% "qPCR")&(!data$group %in%  "WT"),]
 color_qpcr <- c(rev(color_alleles)[1:2], "WT" = "black")
 
-print("6.2.2) Plot")
+print("10.2.2) Plot")
 g <- qpcr[qpcr$Gene %in% "Xist",] %>%
   ggplot(aes(x = factor(Day), y = log2(Value), color = group, fill = group)) +
   theme_bw() + theme1 +  
@@ -1497,17 +1971,17 @@ g <- qpcr[qpcr$Gene %in% "Xist",] %>%
        title = "Xist (qPCR)") +
   theme(strip.text.y = element_text(angle = 0))
 adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S7_B_qPCRdXic_Xist_RelExp.pdf"),
+            savefile = paste0(outpath, "S11_B_qPCRdXic_Xist_RelExp.pdf"),
             width = 3, height = 2)
 
 
 
-print("6.3) C: FISH - Xist+ cells in dXic lines")
+print("10.3) C: FISH - Xist+ cells in dXic lines")
 
-print("6.3.1) Load data")
+print("10.3.1) Load data")
 fish <- data[(data$Experiment %in% "FISH")&(!data$group %in% "TX1072"),]
 
-print("6.3.2) Plot")
+print("10.3.2) Plot")
 g <- fish %>%
   ggplot(aes(x = factor(Day), y = Value, color = group, fill = group)) +
   theme_bw() + theme1 +  
@@ -1522,13 +1996,78 @@ g <- fish %>%
        color = "",
        title = "Xist (RNA-FISH)")
 adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S7_C_FISHdXic.pdf"),
+            savefile = paste0(outpath, "S11_C_FISHdXic.pdf"),
             width = 3, height = 2)
 
 
-print("6.4) D: Pyrosequencing - Control genes: B6/Total")
+print("11.4) D: Xi/Xa ratio in two cell lines")
 
-print("6.4.1) Plot")
+print("11.4.1) Load data")
+load(paste0(datapath, "DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]
+load(paste0(datapath, "DGE_dXic_Cast.RData")); cast <- dge[!rownames(dge) %in% "Xist_5prime",]
+df <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
+                 sample = rep(colnames(b6), each = nrow(b6)),
+                 cell_line = rep(b6$samples$dXic, each = nrow(b6)),
+                 Chr = rep(b6$genes$chromosome, times = ncol(b6)),
+                 Gene = rep(b6$genes$symbol, times = ncol(b6)),
+                 Ensembl = rep(b6$genes$ensembl, times = ncol(b6)),
+                 b6 = c(b6$counts), cast = c(cast$counts))
+df <- df %>% 
+  dplyr::group_by(sample) %>% 
+  dplyr::mutate(libsize_b6 = sum(b6), libsize_cast = sum(cast)) %>%
+  as.data.frame()
+
+print("11.4.2) Remove genes on deletion locus")
+df$Xi <- ifelse(df$cell_line == "dB6", df$cast, df$b6)
+df$Xa <- ifelse(df$cell_line == "dB6", df$b6, df$cast)
+dXic_locus <- 103182257:103955531
+dXic_genes <- bm[(bm$chromosome_name == "X")&(bm$start_position %in% dXic_locus | bm$end_position %in% dXic_locus),]
+g <- unique(dXic_genes$mgi_symbol); e <- unique(dXic_genes$ensembl_gene_id)
+df <- df[!df$Ensembl %in% e,]
+
+print("11.4.3) Compute Xi/Xa ratio and test for each time point")
+temp <- df %>% 
+  dplyr::group_by(day, cell_line, sample) %>% 
+  dplyr::summarise(Xi_X = sum(Xi[(Chr %in% "X")]),
+                   Xi_Tot = sum(Xi),
+                   Xa_X = sum(Xa[(Chr %in% "X")]),
+                   Xa_Tot = sum(Xa)) %>% 
+  as.data.frame()
+temp$XiXa <- temp$Xi_X/temp$Xa_X
+temp$cl <- revalue(factor(temp$cell_line), replace = c("dB6" = "Xi = Cast [dXic on B6]",
+                                                       "dCast" = "Xi = B6 [dXic on Cast]"))
+tt <- ddply(temp, .variables = .(day), summarise, 
+            t_pvalue = t.test(x = log2(XiXa[cell_line == "dB6"]), 
+                              y = log2(XiXa[cell_line == "dCast"]), 
+                              paired = FALSE)$p.value)
+tt$pvalue <- ifelse(tt$t_pvalue >= 0.01, paste0("p = ", round(tt$t_pvalue, digits = 2)), 
+                    ifelse(tt$t_pvalue >= 0.001, paste0("p = ", round(tt$t_pvalue, digits = 3)),
+                           "p < 0.001"))
+
+print("11.4.3) Plot")
+g <- temp %>% 
+  ggplot() + 
+  theme_bw() + theme1 + 
+  geom_jitter(aes(x = factor(day), y = log2(XiXa), color = cl),
+              alpha = 0.5, size = 1,
+              position=position_jitterdodge(jitter.width = .1, dodge.width = 0.9), shape = 16) +
+  stat_summary(fun=mean, aes(x = factor(day), y = log2(XiXa), ymin=..y.., ymax=..y.., color = cl), 
+               geom='errorbar', width=0.5,
+               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.75), size = linesize*2, show.legend = F) +
+  guides(color = guide_legend(override.aes = list(size=2, alpha = 1))) +
+  labs(x="Time [days]", y = "Xi/Xa [log2]\nexcluding genes on dXic\n[chrX:103,182,257-103,955,531]", 
+       color = "") +
+  scale_color_manual(values = c("#d95f02", "#1b9e77")) +
+  geom_text(data = tt, 
+            aes(x = day+1, y = 0.25, label = pvalue),
+            size = geomtext_size, color = "black")
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S11_D_XiXaRatio_deltaXic.pdf"), height = 2)
+
+
+print("11.5) E: Pyrosequencing - Control genes: B6/Total")
+
+print("11.5.1) Plot")
 g <- pyroseq[(pyroseq$is_hit != "DS gene")&(!pyroseq$Gene %in% "Xist"),] %>%
   ggplot(aes(x = factor(Day), y = B6SNPfreq, color = group, fill = group)) +
   theme_bw() + theme1 +  
@@ -1544,19 +2083,19 @@ g <- pyroseq[(pyroseq$is_hit != "DS gene")&(!pyroseq$Gene %in% "Xist"),] %>%
        color = "") +
   scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 100))
 adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S7_D_PyrodXic_ControlGenes_B6ratio.pdf"), 
+            savefile = paste0(outpath, "S11_E_PyrodXic_ControlGenes_B6ratio.pdf"), 
             width = 10, height = 2)
 
 
-print("6.5) E: Pyrosequencing - Control genes: normalized Xi:Xa values")
+print("11.6) F: Pyrosequencing - Control genes: normalized Xi:Xa values")
 
-print("6.5.1) Load data")
+print("11.6.1) Load data")
 temp <- pyroseq[(pyroseq$is_hit != "DS gene")&(!pyroseq$Gene %in% "Xist"),]
 temp$Xiperc <- ifelse(temp$group == "Xist-MA (Xi=B6)", 
                       100-temp$Value, 
                       temp$Value)
 
-print("6.5.2) Compute Xi:Xa ratios, normalize to d0 values, average across replicates")
+print("11.6.2) Compute Xi:Xa ratios, normalize to d0 values, average across replicates")
 
 # compute XiXa ratios
 temp$XiXa <- temp$Xiperc/(100-temp$Xiperc)
@@ -1581,7 +2120,7 @@ wt$p <- ifelse(wt$wilcox_pvalue >= 0.01, paste0("p = ", round(wt$wilcox_pvalue, 
                ifelse(wt$wilcox_pvalue >= 0.001, paste0("p = ", round(wt$wilcox_pvalue, digits = 3)),
                       "p < 0.001"))
 
-print("6.5.3) Plot")
+print("11.6.3) Plot")
 g <- mr  %>%
   ggplot(aes(x = factor(Day), y = log2(meanratio), color = group, fill = group)) +
   theme_bw() + theme1 +  
@@ -1599,14 +2138,14 @@ g <- mr  %>%
        color = "",
        title = "5 X-linked genes") +
   scale_y_continuous(limits = c(-2.5, 1.5))
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S7_E_PyrodXic_ControlGenes_Avglog2NormRatios.pdf"),
-            width = 5, height = 2)
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S11_F_PyrodXic_ControlGenes_Avglog2NormRatios.pdf"),
+            width = 5, height = 3)
 
 
-print("6.6) F: Pyrosequencing - DS genes: B6/Total")
+print("11.7) G: Pyrosequencing - DS genes: B6/Total")
 
-print("6.6.1) Plot")
+print("11.7.1) Plot")
 g <- pyroseq[pyroseq$is_hit == "DS gene",] %>%
   ggplot(aes(x = factor(Day), y = B6SNPfreq, color = group, fill = group)) +
   theme_bw() + theme1 +  
@@ -1621,20 +2160,20 @@ g <- pyroseq[pyroseq$is_hit == "DS gene",] %>%
        y = "B6/Total [%]", 
        color = "") +
   scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 100))
-adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S7_F_PyrodXic_DSgenes_B6ratio.pdf"), 
-            width = 10, height = 2)
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S11_G_PyrodXic_DSgenes_B6ratio.pdf"), 
+            width = 10, height = 3)
 
 
-print("6.7) G: Pyrosequencing - DS genes: normalized Xi:Xa values")
+print("11.7.2) F: Pyrosequencing - DS genes: normalized Xi:Xa values")
 
-print("6.7.1) Load data")
+print("11.7.3) Load data")
 temp <- pyroseq[(pyroseq$is_hit %in% "DS gene"),]
 temp$Xiperc <- ifelse(temp$group == "Xist-MA (Xi=B6)", 
                       100-temp$Value, 
                       temp$Value)
 
-print("6.7.2) Compute Xi:Xa ratios, normalize to d0 values, test for each gene")
+print("11.7.4) Compute Xi:Xa ratios, normalize to d0 values, test for each gene")
 
 # compute XiXa ratios
 temp$XiXa <- temp$Xiperc/(100-temp$Xiperc)
@@ -1654,8 +2193,7 @@ tt$p <- ifelse(tt$t_pvalue >= 0.01, paste0("p = ", round(tt$t_pvalue, digits = 2
                ifelse(tt$t_pvalue >= 0.001, paste0("p = ", round(tt$t_pvalue, digits = 3)),
                       "p < 0.001"))
 
-print("6.7.3) Plot")
-
+print("11.7.5) Plot")
 g <- temp %>%
   ggplot(aes(x = factor(Day), y = log2(XiXa_scaled), color = group, fill = group)) +
   theme_bw() + theme1 +  
@@ -1673,9 +2211,9 @@ g <- temp %>%
        y = "norm. Xi/Xa [log2]",
        color = "") +
   scale_y_continuous(limits = c(-2, 2))
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S7_G_PyrodXic_DSgenes_log2NormRatios.pdf"),
-            width = 10, height = 2)
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S11_G_PyrodXic_DSgenes_log2NormRatios.pdf"),
+            width = 10, height = 3)
 
 
 
@@ -1685,258 +2223,45 @@ adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 2,
 
 
 
-print("7) Supplementary figure 8: Bulk RNA-Sequencing of TX1072 and dXic lines")
 
-print("7.1) A: Bulk RNA-Seq: dXic - Percentage of X-linked reads mapping to each allele")
+print("12) Supplementary tables")
 
-print("7.1.1) Load data")
-load(paste0(datapath, "DGE_dXic_B6.RData")); b6 <- dge
-load(paste0(datapath, "DGE_dXic_Cast.RData")); cast <- dge
-df_dXic <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
-                      sample = rep(colnames(b6), each = nrow(b6)),
-                      cell_line = rep(b6$samples$dXic, each = nrow(b6)),
-                      Chr = rep(b6$genes$chromosome, times = ncol(b6)),
-                      Gene = rep(b6$genes$symbol, times = ncol(b6)),
-                      Ensembl = rep(b6$genes$ensembl, times = ncol(b6)),
-                      b6 = c(b6$counts), cast = c(cast$counts))
-df_dXic <- df_dXic %>% 
-  dplyr::group_by(sample) %>% 
-  dplyr::mutate(libsize_b6 = sum(b6[!Gene %in% "Xist_5prime"]), libsize_cast = sum(cast[!Gene %in% "Xist_5prime"]),
-                libsize_b6_Xist5prime = sum(b6[!Gene %in% "Xist"]), libsize_cast_Xist5prime = sum(cast[!Gene %in% "Xist"])) %>%
-  as.data.frame()
+print("12.1) ST1 - Cell and Gene filtering")
 
+print("12.2) ST2 - Cell and Gene measures")
 
-print("7.1.2) Subset to X-linked genes removing the ones on dXic locus")
-dXic_locus <- 103182257:103955531
-dXic_genes <- bm[(bm$chromosome_name == "X")&(bm$start_position %in% dXic_locus | bm$end_position %in% dXic_locus),]
-g <- unique(dXic_genes$mgi_symbol); e <- unique(dXic_genes$ensembl_gene_id)
-df_noXic <- df_dXic[!df_dXic$Ensembl %in% e,]
+print("12.3) ST3 - DE and Correlation analyses")
 
-print("7.1.3) Compute percentage of X-linked reads from each allele in two cell lines over time")
-temp <- df_noXic %>% 
-  dplyr::group_by(day, cell_line, sample) %>% 
-  dplyr::summarise(b6_X = sum(b6[(Chr %in% "X")]),
-                   b6_Tot = sum(b6),
-                   cast_X = sum(cast[(Chr %in% "X")]),
-                   cast_Tot = sum(cast)) %>% 
-  as.data.frame()
-temp$B6 <- (temp$b6_X/(temp$b6_Tot + temp$cast_Tot))*100
-temp$Cast <- (temp$cast_X/(temp$b6_Tot + temp$cast_Tot))*100
-temp$cl <- revalue(factor(temp$cell_line), replace = c("dB6" = "Xi = Cast [dXic on B6]",
-                                                       "dCast" = "Xi = B6 [dXic on Cast]"))
-temp_melt <- melt(temp, id.vars = c("day", "cell_line", "cl", "sample"), measure.vars = c("B6", "Cast"))
-temp_melt$variable <- factor(temp_melt$variable, levels = c("Cast", "B6"))
+f4path <- paste0(path, "output/fig4_deXistHighLow/")
+suppath <- paste0(path, "output/fig_Supplementary/")
 
-print("7.1.4) Plot")
-g <- temp_melt %>% 
-  ggplot(aes(x = factor(day), y = value, color = variable)) + 
-  theme_bw() + theme1 + 
-  facet_grid(.~cl) +
-  geom_jitter(alpha = 0.5, size = 1,
-              position=position_jitterdodge(jitter.width = .1, dodge.width = 0.9), shape = 16) +
-  guides(color = guide_legend(override.aes = list(size=2, alpha = 1))) +
-  stat_summary(fun=mean, aes(ymin=..y.., ymax=..y..), geom='errorbar', width=0.5,
-               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.9), 
-               size = linesize*2, show.legend = FALSE) +
-  labs(x="Time [days]", 
-       y = "X-chromosome\nAS expression [%]", 
-       color = "Allele") +
-  scale_color_manual(values = rev(c("#1b9e77", "#d95f02"))) + 
-  scale_y_continuous(breaks = seq(0.5, 2.5, by = 0.5), limits = c(0.5, 2.5))
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S8_A_BulkdXic_XchrASpercs.pdf"), 
-            height = 2, width = 7)
-
-
-print("7.2) B: Bulk RNA-Seq: dXic - Xist gene expression using only 5'-SNP")
-
-print("7.2.1) Identify Xist 5prime expression from allele without deletion")
-temp <- df_dXic[df_dXic$Gene %in% "Xist_5prime",]
-temp$Xist <- ifelse(temp$cell_line == "dB6", temp$cast, temp$b6)
-temp$libsize <- ifelse(temp$cell_line == "dB6", temp$libsize_cast_Xist5prime, temp$libsize_b6_Xist5prime)
-
-print("7.2.2) Test two cell lines for each time point")
-temp$Xist_cpm <- (temp$Xist/temp$libsize)*1e6
-test <- temp %>% dplyr::group_by(day) %>% 
-  dplyr::summarise(w_pvalue = t.test(x = Xist_cpm[cell_line == "dB6"],
-                                     y = Xist_cpm[cell_line == "dCast"])$p.value) %>%
-  as.data.frame()
-test$pvalue <- ifelse(test$w_pvalue >= 0.01, paste0("p = ", round(test$w_pvalue, digits = 2)), 
-                      ifelse(test$w_pvalue >= 0.001, paste0("p = ", round(test$w_pvalue, digits = 3)),
-                             "p < 0.001"))
-temp$cell_line <- revalue(temp$cell_line, replace = c("dB6" = "Xi = Cast [dXic on B6]",
-                                                      "dCast" = "Xi = B6 [dXic on Cast]"))
-temp$cell_line <- factor(temp$cell_line, levels = c("Xi = Cast [dXic on B6]",
-                                                    "Xi = B6 [dXic on Cast]"))
-
-print("7.2.3) Plot")
-cols <- c("#1b9e77", "#d95f02")
-g <- temp %>%  
-  ggplot() +
-  theme_bw() + theme1 + 
-  geom_jitter(aes(x = factor(day), y = log10(Xist_cpm + 1), color = cell_line), fill = "black",
-              alpha = 1/2, position=position_jitterdodge(jitter.width = .25, dodge.width = 0.75), 
-              size = scattersize, show.legend = FALSE) +
-  stat_summary(fun=mean, aes(x = factor(day), y = log10(Xist_cpm + 1), ymin=..y.., ymax=..y.., color = cell_line), 
-               geom='errorbar', width=0.5,
-               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.75), size = linesize*2) +
-  scale_color_manual(values = rev(cols)) + 
-  geom_text(data = test, aes(x = factor(day), y = 3.5, label = pvalue), size = geomtext_size, show.legend = FALSE) +
-  scale_y_continuous(limits = c(0, 3.75), breaks = seq(0, 4, 1)) +
-  labs(x = "Time [days]", 
-       y = expression("5'-Xist CPM + 1 [ "*log[10]*" ]"), 
-       color = "",
-       title = "dXic: RNA-Seq - Xist 5' expression")
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S8_B_BulkdXic_Xist5prime.pdf"), 
-            height = 2, width = 4)
-
-
-
-print("7.3) C: Bulk RNA-Seq: TX1072 - Xist gene expression")
-
-print("7.3.1) Load data")
-load(paste0(datapath, "DGE_TX1072_B6.RData")); b6 <- dge
-load(paste0(datapath, "DGE_TX1072_Cast.RData")); cast <- dge
-df_wt <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
-                    sample = rep(colnames(b6), each = nrow(b6)),
-                    Chr = rep(b6$genes$chromosome, times = ncol(b6)),
-                    Gene = rep(b6$genes$symbol, times = ncol(b6)),
-                    Ensembl = rep(b6$genes$ensembl, times = ncol(b6)),
-                    b6 = c(b6$counts), cast = c(cast$counts))
-df_wt <- df_wt %>% 
-  dplyr::group_by(sample) %>% 
-  dplyr::mutate(libsize_b6 = sum(b6[!Gene %in% "Xist_5prime"]), libsize_cast = sum(cast[!Gene %in% "Xist_5prime"]),
-                libsize_b6_Xist5prime = sum(b6[!Gene %in% "Xist"]), libsize_cast_Xist5prime = sum(cast[!Gene %in% "Xist"])) %>%
-  as.data.frame()
-temp <- df_wt[df_wt$Gene %in% "Xist",]
-
-print("7.3.2) Paired t-test comparing AS Xist expression levels")
-temp$b6_cpm <- (temp$b6/temp$libsize_b6)*1e6
-temp$cast_cpm <- (temp$cast/temp$libsize_cast)*1e6
-test <- temp %>% dplyr::group_by(day) %>% 
-  dplyr::summarise(w_pvalue = t.test(x = b6_cpm,
-                                     y = cast_cpm, 
-                                     paired = T)$p.value) %>%
-  as.data.frame()
-test$pvalue <- ifelse(test$w_pvalue >= 0.01, paste0("p = ", round(test$w_pvalue, digits = 2)), 
-                      ifelse(test$w_pvalue >= 0.001, paste0("p = ", round(test$w_pvalue, digits = 3)),
-                             "p < 0.001"))
-
-print("7.3.3) Plot")
-cols <- c("#d95f02", "#1b9e77")
-temp_melt <- melt(temp, id.vars = c("day", "Gene"), measure.vars = .("b6_cpm", "cast_cpm"))
-temp_melt$variable <- revalue(temp_melt$variable, replace = c("b6_cpm" = "B6", "cast_cpm" = "Cast"))
-temp_melt$variable <- factor(temp_melt$variable, levels = c("Cast", "B6"))
-g <- temp_melt %>%  
-  ggplot() +
-  theme_bw() + theme1 + 
-  geom_jitter(aes(x = factor(day), y = log10(value + 1), color = variable), fill = "black",
-              alpha = 1/2, position=position_jitterdodge(jitter.width = .25, dodge.width = 0.75), 
-              size = scattersize, show.legend = FALSE) +
-  stat_summary(fun=mean, aes(x = factor(day), y = log10(value + 1), ymin=..y.., ymax=..y.., color = variable), 
-               geom='errorbar', width=0.5,
-               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.75), size = linesize*2) +
-  scale_color_manual(values = cols) + 
-  geom_text(data = test, aes(x = factor(day), y = 3.5, label = pvalue), size = geomtext_size, show.legend = FALSE) +
-  scale_y_continuous(limits = c(0, 3.75), breaks = seq(0, 4, 1)) +
-  labs(x = "Time [days]", 
-       y = expression("Xist CPM + 1 [ "*log[10]*" ]"), 
-       color = "Allele",
-       title = "TX1072: RNA-Seq - Xist expression")
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S8_C_BulkdTX1072_Xist.pdf"), 
-            height = 2, width = 4)
-
-
-
-print("7.4) D: Bulk RNA-Seq: TX1072 - Xist gene expression using only 5'-SNP")
-
-print("7.4.1) Load data")
-temp <- df_wt[df_wt$Gene %in% "Xist_5prime",]
-temp$b6_cpm <- (temp$b6/temp$libsize_b6_Xist5prime)*1e6
-temp$cast_cpm <- (temp$cast/temp$libsize_cast_Xist5prime)*1e6
-
-print("7.4.2) Paired t-test comparing AS Xist expression levels")
-test <- temp %>% dplyr::group_by(day) %>% 
-  dplyr::summarise(t_pvalue = t.test(x = b6_cpm,
-                                     y = cast_cpm, 
-                                     paired = T)$p.value) %>%
-  as.data.frame()
-test$pvalue <- ifelse(test$t_pvalue >= 0.01, paste0("p = ", round(test$t_pvalue, digits = 2)), 
-                      ifelse(test$t_pvalue >= 0.001, paste0("p = ", round(test$t_pvalue, digits = 3)),
-                             "p < 0.001"))
-print("7.4.3) Plot")
-cols <- c("#d95f02", "#1b9e77")
-temp_melt <- melt(temp, id.vars = c("day", "Gene"), measure.vars = .("b6_cpm", "cast_cpm"))
-temp_melt$variable <- revalue(temp_melt$variable, replace = c("b6_cpm" = "B6", "cast_cpm" = "Cast"))
-temp_melt$variable <- factor(temp_melt$variable, levels = c("Cast", "B6"))
-g <- temp_melt %>%  
-  ggplot() +
-  theme_bw() + theme1 + 
-  geom_jitter(aes(x = factor(day), y = log10(value + 1), color = variable), fill = "black",
-              alpha = 1/2, position=position_jitterdodge(jitter.width = .25, dodge.width = 0.75), 
-              size = scattersize, show.legend = FALSE) +
-  stat_summary(fun=mean, aes(x = factor(day), y = log10(value + 1), ymin=..y.., ymax=..y.., color = variable), 
-               geom='errorbar', width=0.5,
-               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.75), size = linesize*2) +
-  scale_color_manual(values = cols) + 
-  geom_text(data = test[!is.na(test$pvalue),], aes(x = factor(day), y = 3.5, label = pvalue), size = geomtext_size, show.legend = FALSE) +
-  scale_y_continuous(limits = c(0, 3.75), breaks = seq(0, 4, 1)) +
-  labs(x = "Time [days]", 
-       y = expression("5'-Xist CPM + 1 [ "*log[10]*" ]"), 
-       color = "Allele",
-       title = "TX1072: RNA-Seq - Xist 5' expression")
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S8_D_BulkdTX1072_Xist5prime.pdf"), 
-            height = 2, width = 4)
-
-
-
-
-
-
-
-
-
-print("8) Supplementary tables")
-
-print("8.1) ST1 - Cell and Gene filtering")
-
-print("8.2) ST2 - Cell and Gene measures")
-
-print("8.3) ST3 - DE and Correlation analyses")
-
-f3path <- paste0(path, "output/fig3_deXistHighLow/")
-f4path <- paste0(path, "output/fig4_deXchrChangeHighLow/")
-
-print("8.3.1) Load data")
+print("12.3.1) Load data")
 
 # Xist - DE analysis
-load(paste0(f3path, "ALLresults.RData"))
+load(paste0(f4path, "ALLresults.RData"))
 fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "fdr")
 xist_de <- all_de[, fields]
 
 # Xist - Correlation analysis
-load(paste0(f3path, "sprmcor.RData"))
+load(paste0(f4path, "sprmcor.RData"))
 colnames(sprmcor) <- c("day", "mgi_symbol", "chromosome_name", "correlation", 
                        "droprate", "droprate_Xist", "n", "pvalue_Xist", "fdr")
 fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "fdr")
 xist_cor <- sprmcor[, fields]
 
 # Xchr Change - DE analysis
-load(paste0(f4path, "XchrChange_HighLow_MAST.RData"))
+load(paste0(suppath, "XchrChange_HighLow_MAST.RData"))
 fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "fdr")
 xchr_de <- all_de[, fields]
 
 # Xchr Change - Correlation analysis
-load(paste0(f4path, "cor_Xchr.RData"))
+load(paste0(suppath, "cor_Xchr.RData"))
 colnames(sprmcor) <- c("day", "mgi_symbol", "chromosome_name", "correlation", 
                        "droprate", "n", "ypos", "pvalue", "fdr")
 fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "fdr")
 xchr_cor <- sprmcor[, fields]
 
-print("8.3.2) Combine results")
+print("12.3.2) Combine results")
 names <- c("day", "chromosome", "gene", "value", "fdr") 
 colnames(xist_de) <- colnames(xist_cor) <- colnames(xchr_de) <- colnames(xchr_cor) <- names
 res <- rbind(data.frame(test = "Xist-DE", xist_de),
@@ -1983,74 +2308,4 @@ for(d in 1:4){
 }
 saveWorkbook(wb, file = paste0(outpath, "ST3_DEA_Correlation.xlsx"), overwrite = T)
 
-print("8.4) ST4 - Experimental Design")
-
-print("8.5) ST5 - Xist not-AS and AS cell classification changing UMI thresholds")
-
-print("8.5.1) Xist not-AS classification changing UMI not-AS threshold")
-
-print("8.5.1.1) Load data")
-load(paste0(datapath, "NGFCF_DGE.RData")); notas <- dge
-df <- data.frame(day = notas$samples$day, ID = notas$samples$id, xist_umi = notas$counts["Xist",])
-
-print("8.5.1.2) Loop and AS Xist classification")
-notas_threshold <- c(0, 5, 10, 25, 50, 100, 200)
-notas_classification <- c()
-lv <- c("Xist-", "Low", "Xist+")
-for(thr in notas_threshold){
-  temp <- df
-  temp$Xist_notAS <- ifelse(df$xist_umi == 0, "Xist-", 
-                            ifelse(df$xist_umi <= thr, "Low",  "Xist+"))
-  temp$Xist_notAS <- factor(temp$Xist_notAS, levels = lv)
-  temp <- temp %>% dplyr::group_by(day, Xist_notAS) %>% dplyr::summarise(n = length(ID))
-  notas_classification <- rbind(notas_classification,
-                                data.frame(temp, notAS_threshold = thr))
-}
-
-print("8.5.1.3) Write table")
-x <- notas_classification %>% arrange(day, Xist_notAS, notAS_threshold)
-colnames(x) <- c("Time [Days]", "Xist notAS class", "# Cells", "Xist notAS UMI threshold")
-wb <- createWorkbook()
-sheetname <- "Xist notAS classification"
-addWorksheet(wb, sheetName = sheetname)
-writeData(wb, sheet = sheetname, x = x, rowNames = F, colNames = T, keepNA = T)
-
-print("8.5.2) Xist AS classification changing UMI AS threshold")
-
-print("8.5.2.1) Load data")
-load(paste0(datapath, "NGFCF_DGE.RData")); notas <- dge
-load(paste0(datapath, "NGFCF_DGE_B6.RData")); b6 <- dge
-load(paste0(datapath, "NGFCF_DGE_Cast.RData")); cast <- dge
-df <- data.frame(day = b6$samples$day, ID = b6$samples$id, 
-                 xist_umi = notas$counts["Xist",],
-                 xist_b6 = b6$counts["Xist",], 
-                 xist_cast = cast$counts["Xist",], 
-                 xist_ratio = b6$counts["Xist",]/(b6$counts["Xist",] + cast$counts["Xist",]))
-
-print("8.5.2.2) Loop and AS Xist classification")
-as_threshold <- 5:20
-as_classification <- c()
-lv <- c("Undetected", "Low", "Xist-MA (Xi=Cast)", "Xist-MA (Xi=B6)", "Skewed", "BA")
-for(thr in as_threshold){
-  temp <- df
-  temp$Xist_AS <- ifelse(temp$xist_ratio == 0, "Xist-MA (Xi=Cast)", 
-                         ifelse(temp$xist_ratio == 1, "Xist-MA (Xi=B6)", 
-                                ifelse((temp$xist_ratio >= 0.2) & (temp$xist_ratio <= 0.8), 
-                                       "BA", "Skewed")))
-  temp$Xist_AS[(temp$xist_b6 + temp$xist_cast) <= thr] <- "Low"
-  temp$Xist_AS[temp$xist_umi == 0] <- "Undetected"
-  temp$Xist_AS <- factor(temp$Xist_AS, levels = lv)
-  temp <- temp %>% dplyr::group_by(day, Xist_AS) %>% dplyr::summarise(n = length(ID))
-  as_classification <- rbind(as_classification,
-                             data.frame(temp, AS_threshold = thr))
-}
-
-print("8.5.2.3) Write table")
-x <- as_classification %>% arrange(day, Xist_AS, AS_threshold)
-colnames(x) <- c("Time [Days]", "Xist AS class", "# Cells", "Xist AS UMI threshold")
-sheetname <- "Xist AS classification"
-addWorksheet(wb, sheetName = sheetname)
-writeData(wb, sheet = sheetname, x = x, rowNames = F, colNames = T, keepNA = T)
-
-print("8.5.3) Store supplementary table")
-saveWorkbook(wb, file = paste0(outpath, "ST5_XistClassification_ChangingThresholds.xlsx"), overwrite = T)
+print("12.4) ST4 - Experimental Design")

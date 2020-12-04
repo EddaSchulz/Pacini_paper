@@ -9,7 +9,7 @@ print("2.1) Compute pseudotimes using Monocle-DDRTree method")
 load(paste0(datapath, "DGE.RData"))
 dge$genes$gene_short_name <- dge$genes$symbol
 
-# process and identify top 100 MVGs
+# identify top 500 most variable genes over time
 pd <- new("AnnotatedDataFrame", data = dge$samples)
 fd <- new("AnnotatedDataFrame", data = dge$genes)
 XX <- newCellDataSet(as(dge$counts, "sparseMatrix"),
@@ -19,8 +19,6 @@ XX <- newCellDataSet(as(dge$counts, "sparseMatrix"),
                      expressionFamily=negbinomial.size())
 XX <- estimateSizeFactors(XX)
 XX <- estimateDispersions(XX)
-
-# identify DE genes over time --> select top 500 DE genes
 pData(XX)$hour <- pData(XX)$day*24
 de <- differentialGeneTest(XX, fullModelFormulaStr="~hour", cores=detectCores())
 top_pdt_genes <- 500
@@ -29,7 +27,7 @@ de_genes <- de_genes[order(de_genes$qval, decreasing = FALSE),]
 order_genes <- rownames(de_genes[order(de_genes$qval, decreasing = FALSE),])[seq_len(top_pdt_genes)]
 XX <- setOrderingFilter(XX, order_genes)
 
-# reduce dimensions and compute pseudotime for XX cells
+# reduce dimensions and compute pseudotime
 XX <- reduceDimension(XX, method = 'DDRTree')
 XX <- orderCells(XX)
 
@@ -95,23 +93,22 @@ keep <- (rm_s >= 1)&(rm_u >= 0.5); table(keep)
 emat <- spliced_filt <- spliced$counts[keep,]; nmat <- unspliced_filt <- unspliced$counts[keep,]
 
 # compute velocities
-fit.quantile <- 0.025; kcells <- 20; mincor <- 0.05
+ncores <- min(c(detectCores(), 10))
+fit.quantile <- 0.025; kcells <- 20
 arrow.scale=5; cell.alpha=0.4; cell.cex=1; fig.height=4; fig.width=4.5;
-notAS_vel <- gene.relative.velocity.estimates(emat, nmat, deltaT=1, kCells = kcells, 
+notAS_vel <- gene.relative.velocity.estimates(emat, nmat, 
+                                              kCells = kcells, 
                                               fit.quantile = fit.quantile, 
-                                              min.nmat.emat.slope = mincor,
-                                              min.nmat.emat.correlation = mincor, 
-                                              n.cores = 10)
+                                              n.cores = ncores)
 save(notAS_vel, file = paste0(outpath, "notAS_vel.RData"))
 
 
 print("3.2) Compute notAS UMAP embedding")
 
 # settings
-pcount <- 1; mvg <- 500; umap_nPcs <- 50; umap_nn <- 20; neighbor_size <- 100; mult <- 1e3
-quantile <- 0.025; min.correlation <- min.slope <- 0.05; 
-grid_size <- 30; arrow.pca <- 2.5; arrow <- 2.5; arrow.lwd <- 1; grid.mass <- 5
-gapT <- 1; k_range <- 30; controlby <- "time"; cor_dist_measure <- "cor"; velocity_scale <- "sqrt"
+mvg <- 500; umap_nPcs <- 50; umap_nn <- 20; neighbor_size <- 100
+arrow <- 2.5; arrow.lwd <- 1; arrowthick <- 3e-1; arrowidth <- 5*1e-2; arrowsharp <- 40
+velocity_scale <- "sqrt"
 
 # load data and define marker genes
 load(paste0(datapath, "DGE.RData"))
@@ -153,7 +150,6 @@ x <- show.velocity.on.embedding.cor(emb, vel = notAS_vel, n=neighbor_size, scale
                                     return.details = TRUE)
 
 # make the arrow width proportional to the velocity extent
-arrowthick <- 3e-1; arrowidth <- 5*1e-2; arrowsharp <- 40
 temp <- data.frame(emb, colors, Xist_count = spliced$counts["Xist",]); gridvelo <- x$garrows
 x$garrows <- data.frame(x$garrows)
 x$garrows$dist <- sqrt((x$garrows$x0 - x$garrows$x1)^2 + (x$garrows$y0 - x$garrows$y1)^2)

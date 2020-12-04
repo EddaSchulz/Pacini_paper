@@ -91,21 +91,45 @@ data <- data[(data$Experiment %in% "FISH")&(data$CellLine %in% "TX1072"),]
 data$Xist <- factor(revalue(factor(data$Variable), replace = c("XistPos" = "Xist+", "XistBi" = "BA")), 
                     levels = c("Xist+", "BA"))
 
-print("4.2) Plot")
+print("4.2) Define percentage of Xist-MA cells per replicate")
+temp <- data %>% 
+  dplyr::group_by(Day, Replicate) %>%
+  dplyr::summarise(perc = Value[Xist == "Xist+"] - Value[Xist == "BA"]) %>%
+  as.data.frame()
+data <- rbind(data,
+              data.frame(Experiment = "FISH", 
+                         CellLine = "TX1072",
+                         Day = temp$Day,
+                         Gene = NA,
+                         Variable = "XistMA",
+                         Replicate = temp$Replicate,
+                         Value = temp$perc,
+                         Value_Description = "Cells [%]",
+                         Xist = "Xist-MA"))
+  
+
+print("4.3) Bar-Plot")
+data <- data[!data$Xist %in% "Xist+",]
+data$Xist <- factor(data$Xist, levels = c("Xist-MA", "BA"))
 cols <- c("#6F72B5", "#fa9fb5")
-g <- data  %>%
-  ggplot(aes(x = factor(Day), y = Value, color = Xist, fill = Xist)) +
-  theme_bw() + theme1 +  
-  geom_jitter(position=position_jitterdodge(jitter.width = .1, dodge.width = 0.5),
-              size = small_scattersize, show.legend = FALSE, alpha = 1/2) +
-  stat_summary(fun=mean, aes(ymin=..y.., ymax=..y..), geom='errorbar', width=0.5,
-               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.5), size = linesize*2) +
-  scale_color_manual(values = cols) +
+data$day <- paste0("Day ", data$Day)
+data %>% dplyr::group_by(day, Xist) %>% dplyr::summarise(mean = round(mean(Value), digits = 2)) %>% as.data.frame()
+
+# define one bar per replicate for each time point
+data$x <- data$Day + (data$Replicate - 2)*0.25
+g <- data %>%
+  ggplot(aes(x = x, y = Value, fill = Xist)) +
+  theme_bw() + theme1 + 
+  geom_bar(stat="identity") +
+  scale_fill_manual(values = cols) +
+  scale_x_continuous(breaks = seq(1,4)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 100), breaks = seq(0, 100, 25)) +
   labs(x = "Time [days]", 
        y = "Cells [%]",
-       color = "") +
-  scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 100))
-adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(outpath, "C_FISH_percentage.pdf"))
+       fill = "Image\nClassification")
+adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, 
+            savefile = paste0(outpath, "C_FISH_percentage.pdf"))
+
 
 
 print("5) D: Xist AS CPM over time - Xist.MA cells")
@@ -146,41 +170,3 @@ g <- temp %>%
   labs(x = "Time [days]", y = expression("Xist CPM + 1 ["* log[10]*"]"), color = "") +
   guides(color = guide_legend(override.aes = list(size = 1, shape = 20, alpha = 1)))
 adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "D_XistMA_B6vCast.pdf"))
-
-
-print("6) E: Xist AS CPM over time")
-
-print("6.1) Load data")
-
-res_xistplus <- res
-wmwtest <- ddply(res_xistplus, .variables = .(day), summarize, 
-                 pvalue = wilcox.test(x = log10(Xist_b6_cpm+1), 
-                                      y = log10(Xist_cast_cpm+1), 
-                                      paired = TRUE)$p.value)
-wmwtest$p <- ifelse(wmwtest$pvalue >= 0.01, paste0("p = ", round(wmwtest$pvalue, digits = 2)), 
-                    ifelse(wmwtest$pvalue >= 0.001, paste0("p = ", round(wmwtest$pvalue, digits = 3)),
-                           "p < 0.001"))
-temp <- res_xistplus[, c("id", "day", "Xist_classification", "Xist_b6_cpm", "Xist_cast_cpm")]
-temp_melt <- melt(temp, id.vars = c("id", "day", "Xist_classification"), 
-                  measure.vars = c("Xist_b6_cpm", "Xist_cast_cpm"), variable.name = "Xist")
-temp_melt$allele <- ifelse(temp_melt$Xist == "Xist_b6_cpm", "B6", "Cast")
-temp_melt$logcpm <- log10(temp_melt$value + 1)
-
-
-print("6.2) Plot")
-
-g <- temp_melt[temp_melt$day>0,] %>% 
-  ggplot() +
-  theme_bw() +  theme1 + 
-  scale_y_continuous(breaks = seq(0, 5, by = 1)) +
-  geom_violin(aes(x = factor(day), y = logcpm, colour = factor(allele)), 
-              alpha = 0.5, draw_quantiles = c(0.5), size = violin_box_size, show.legend = FALSE) + 
-  geom_jitter(aes(x = factor(day), y = logcpm, colour = allele), 
-              alpha = 0.25, size = scattersize,
-              position=position_jitterdodge(jitter.width = .05, dodge.width = 0.9), shape = 20) +
-  geom_text(data = wmwtest[!wmwtest$day %in% "0",], aes(x = factor(day), y = 4.75, label = p), 
-            size = geomtext_size, angle = 0) +
-  scale_color_manual(values = c("#1b9e77", "#d95f02")) +
-  labs(x = "Time [days]", y = expression("Xist CPM + 1 ["* log[10]*"]"), color = "") +
-  guides(color = guide_legend(override.aes = list(size = 1, shape = 20, alpha = 1)))
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "E_B6vCast.pdf"))

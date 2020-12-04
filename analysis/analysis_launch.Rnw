@@ -33,7 +33,6 @@ breaklines=true
 \section{Define input/output paths}
 <<>>=
 path <- "C:/Users/pacini/Pacini_paper-master/analysis/"
-path <- "C:/Users/pacini/Desktop/git_final/Pacini_paper/analysis/"
 datapath <- paste0(path, "data/")
 scriptpath <- paste0(path, "scripts/")
 @
@@ -138,8 +137,7 @@ adjust_size <- function(g = g, panel_width_cm = 5, panel_height_cm = 5,
   gt$heights[which] <- unit(panel_height_cm, 'cm')
 
   ## save plot
-  ggsave(grid.draw(gt), filename = savefile, width = width, height = height, useDingbats = FALSE)
-  # return(gt)
+    ggsave(grid.draw(gt), filename = savefile, width = width, height = height, useDingbats = FALSE)
 }
 scientific_label <- function(l) {
      l <- format(l, scientific = TRUE)
@@ -182,18 +180,18 @@ end <- Sys.time()
 time <- end - start; time
 @
 
-\section{Figure 3: Identification of putative Xist regulators}
+\section{Figure 3: Chromosome-wide silencing dynamics}
 <<>>=
 start <- Sys.time()
-source(paste0(scriptpath, "fig3_XistRegulators.R"))
+source(paste0(scriptpath, "fig3_SilencingDynamics.R"))
 end <- Sys.time()
 time <- end - start; time
 @
 
-\section{Figure 4: Identification of putative X-chromosome regulators}
+\section{Figure 4: Identification of putative Xist regulators}
 <<>>=
 start <- Sys.time()
-source(paste0(scriptpath, "fig4_XchrChangeRegulators.R"))
+source(paste0(scriptpath, "fig4_XistRegulators.R"))
 end <- Sys.time()
 time <- end - start; time
 @
@@ -206,26 +204,18 @@ end <- Sys.time()
 time <- end - start; time
 @
 
-\section{Figure 6: Chromosome-wide silencing dynamics}
+\section{Figure 6: Allelic silencing dynamics}
 <<>>=
 start <- Sys.time()
-source(paste0(scriptpath, "fig4_SilencingDynamics.R"))
+source(paste0(scriptpath, "fig6_AllelicSilencingDynamics.R"))
 end <- Sys.time()
 time <- end - start; time
 @
 
-\section{Figure 7: Allelic silencing dynamics}
+\section{Figure 7: Bulk RNA-Sequencing of dXic cell lines}
 <<>>=
 start <- Sys.time()
-source(paste0(scriptpath, "fig5_AllelicSilencingDynamics.R"))
-end <- Sys.time()
-time <- end - start; time
-@
-
-\section{Figure 8: Experimental validation of differentially silenced genes}
-<<>>=
-start <- Sys.time()
-source(paste0(scriptpath, "fig6_ExperimentalValidation.R"))
+source(paste0(scriptpath, "fig7_BulkRNASeqdXic.R"))
 end <- Sys.time()
 time <- end - start; time
 @

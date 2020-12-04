@@ -1,0 +1,5 @@
+Day HighXchrChange LowXchrChange
+1 80 101
+2 117 81
+3 81 51
+4 98 51
