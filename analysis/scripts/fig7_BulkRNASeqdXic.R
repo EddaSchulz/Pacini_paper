@@ -6,15 +6,15 @@ outpath <- paste0(path, "output/fig7_BulkRNASeqdXic/"); dir.create(path = outpat
 print("2) B: Xist expression in dXic line")
 
 print("2.1) Load data")
-load(paste0(datapath, "DGE_dXic.RData")); table(dge$samples$dXic, dge$samples$day)
+load(paste0(datapath, "NGF_DGE_dXic.RData")); table(dge$samples$dXic, dge$samples$day)
 
 print("2.2) Compare Xist expression between two cell lines")
 temp <- data.frame(id = dge$samples$id,
                    day = dge$samples$day,
                    cell_line = dge$samples$dXic,
-                   libsize = colSums(dge$counts),
+                   els = dge$samples$eff_libsize_notX,
                    Xist = dge$counts[dge$genes$symbol %in% "Xist",])
-temp$Xist_cpm <- (temp$Xist/temp$libsize)*1e6
+temp$Xist_cpm <- (temp$Xist/temp$els)*1e6
 test <- temp %>% dplyr::group_by(day) %>% 
   dplyr::summarise(t_pvalue = t.test(x = Xist_cpm[cell_line == "dB6"],
                                      y = Xist_cpm[cell_line == "dCast"])$p.value) %>%
@@ -48,8 +48,8 @@ adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3,
 print("3) C: Xi/Xa gene-wise ratio in two cell lines across replicates")
 
 print("3.1) Load data")
-load(paste0(datapath, "DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]
-load(paste0(datapath, "DGE_dXic_Cast.RData")); cast <- dge[!rownames(dge) %in% "Xist_5prime",]
+load(paste0(datapath, "NGF_DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]
+load(paste0(datapath, "NGF_DGE_dXic_Cast.RData")); cast <- dge[!rownames(dge) %in% "Xist_5prime",]
 df <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
                 sample = rep(colnames(b6), each = nrow(b6)),
                 cell_line = rep(b6$samples$dXic, each = nrow(b6)),
@@ -116,8 +116,8 @@ adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3,
 print("4) D: Xi/Xa ratio for differentially silenced genes")
 
 print("4.1) Load data")
-load(paste0(datapath, "DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]
-load(paste0(datapath, "DGE_dXic_Cast.RData")); cast <- dge[!rownames(dge) %in% "Xist_5prime",]
+load(paste0(datapath, "NGF_DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]
+load(paste0(datapath, "NGF_DGE_dXic_Cast.RData")); cast <- dge[!rownames(dge) %in% "Xist_5prime",]
 df <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
                  sample = rep(colnames(b6), each = nrow(b6)),
                  Line = rep(b6$samples$dXic, each = nrow(b6)),

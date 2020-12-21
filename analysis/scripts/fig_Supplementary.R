@@ -588,10 +588,11 @@ adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3,
 print("5.2) A: Bulk RNA-Seq: TX1072 - Xist overall and 5' gene expression")
 
 print("5.2.1) Load data")
-load(paste0(datapath, "DGE_TX1072_B6.RData")); b6 <- dge
-load(paste0(datapath, "DGE_TX1072_Cast.RData")); cast <- dge
+load(paste0(datapath, "NGF_DGE_TX1072_B6.RData")); b6 <- dge
+load(paste0(datapath, "NGF_DGE_TX1072_Cast.RData")); cast <- dge
 df_wt <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
                     sample = rep(colnames(b6), each = nrow(b6)),
+                    sf = rep(b6$samples$sf_notX, each = nrow(b6)),
                     Chr = rep(b6$genes$chromosome, times = ncol(b6)),
                     Gene = rep(b6$genes$symbol, times = ncol(b6)),
                     Ensembl = rep(b6$genes$ensembl, times = ncol(b6)),
@@ -604,8 +605,8 @@ df_wt <- df_wt %>%
 temp <- df_wt[df_wt$Gene %in% "Xist",]
 
 print("5.2.2) Paired t-test comparing AS Xist expression levels")
-temp$b6_cpm <- (temp$b6/temp$libsize_b6)*1e6
-temp$cast_cpm <- (temp$cast/temp$libsize_cast)*1e6
+temp$b6_cpm <- (temp$b6/(temp$libsize_b6*temp$sf))*1e6
+temp$cast_cpm <- (temp$cast/(temp$libsize_cast*temp$sf))*1e6
 test <- temp %>% dplyr::group_by(day) %>% 
   dplyr::summarise(t_pvalue = t.test(x = b6_cpm,
                                      y = cast_cpm, 
@@ -638,6 +639,44 @@ g <- temp_melt %>%
        title = "TX1072: RNA-Seq - Xist expression")
 adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
             savefile = paste0(outpath, "S5_B_BulkTX1072_Xist.pdf"), 
+            height = 3, width = 4)
+
+
+print("5.2.4) Xist 5' expression")
+temp <- df_wt[df_wt$Gene %in% "Xist_5prime",]
+temp$b6_cpm <- (temp$b6/(temp$libsize_b6_Xist5prime*temp$sf))*1e6
+temp$cast_cpm <- (temp$cast/(temp$libsize_cast_Xist5prime*temp$sf))*1e6
+test <- temp %>% dplyr::group_by(day) %>% 
+  dplyr::summarise(t_pvalue = t.test(x = b6_cpm,
+                                     y = cast_cpm, 
+                                     paired = T)$p.value) %>%
+  as.data.frame()
+test$pvalue <- ifelse(test$t_pvalue >= 0.01, paste0("p = ", round(test$t_pvalue, digits = 2)), 
+                      ifelse(test$t_pvalue >= 0.001, paste0("p = ", round(test$t_pvalue, digits = 3)),
+                             "p < 0.001"))
+
+cols <- c("#d95f02", "#1b9e77")
+temp_melt <- melt(temp, id.vars = c("day", "Gene"), measure.vars = .("b6_cpm", "cast_cpm"))
+temp_melt$variable <- revalue(temp_melt$variable, replace = c("b6_cpm" = "B6", "cast_cpm" = "Cast"))
+temp_melt$variable <- factor(temp_melt$variable, levels = c("Cast", "B6"))
+g <- temp_melt %>%  
+  ggplot() +
+  theme_bw() + theme1 + 
+  geom_jitter(aes(x = factor(day), y = log10(value + 1), color = variable), fill = "black",
+              alpha = 1/2, position=position_jitterdodge(jitter.width = .25, dodge.width = 0.75), 
+              size = scattersize, show.legend = FALSE) +
+  stat_summary(fun=mean, aes(x = factor(day), y = log10(value + 1), ymin=..y.., ymax=..y.., color = variable), 
+               geom='errorbar', width=0.5,
+               position=position_jitterdodge(jitter.width = 0, dodge.width = 0.75), size = linesize*2) +
+  scale_color_manual(values = cols) + 
+  geom_text(data = test, aes(x = factor(day), y = 2.85, label = pvalue), size = geomtext_size, show.legend = FALSE) +
+  scale_y_continuous(limits = c(0, 3), breaks = seq(0, 4, 1)) +
+  labs(x = "Time [days]", 
+       y = expression("Xist 5' CPM + 1 [ "*log[10]*" ]"), 
+       color = "Allele",
+       title = "TX1072: RNA-Seq - Xist expression")
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
+            savefile = paste0(outpath, "S5_B_BulkTX1072_Xist5prime.pdf"), 
             height = 3, width = 4)
 
 
@@ -885,65 +924,62 @@ print("7.2) B: X-chromosome change High vs Xist Low MAST DE analysis per time po
 
 print("7.2.1) Define contrast and launch DE analyses")
 
-# define contrast(s)
+# define contrast and launch MAST
 contrasts <- list(HighXchrChange_LowXchrChange = c("km_XchrChange", list("high", "low")))
 min_sample_test <- 10; de_threshold <- 5e-2; days <- 1:4
+comparison <- "HighXchrChange_LowXchrChange"
+variable <- "km_XchrChange"
+variable_levels <- list("high", "low")
 
-# launch MAST analysis for each contrast
-for(cont in 1:length(contrasts)){
-  comparison <- names(contrasts)[cont]
-  variable <- unlist(contrasts[[cont]][1]); variable_levels <- contrasts[[cont]][2:3]
+if(!dir.exists(paste0(outpath, comparison))){
+  dir.create(path = paste0(outpath, comparison), showWarnings = FALSE, recursive = TRUE)
   
-  if(!dir.exists(paste0(outpath, comparison))){
-    dir.create(path = paste0(outpath, comparison), showWarnings = FALSE, recursive = TRUE)
+  for (i in 1:length(days)) {
+    time <- days[i]; cat('Processing day', time, '..')
+    dge <- dge_ext[, dge_ext$samples$day == time]
+    dge$samples$sample <- rownames(dge$samples)
     
-    for (i in 1:length(days)) {
-      time <- days[i]; cat('Processing day', time, '..')
-      dge <- dge_ext[, dge_ext$samples$day == time]
-      dge$samples$sample <- rownames(dge$samples)
+    # subset to grouping conditions only
+    temp <- dge[!(grepl(dge$genes$symbol, pattern = "^ERCC") | duplicated(dge$genes$ensembl)), dge$samples[,variable] %in% unlist(variable_levels)]
+    grp <- temp$samples[,variable]
+    grp <- ifelse(grp %in% variable_levels[[1]], "case", "control"); table(grp)
+    names(grp) <- temp$samples$sample
+    grp <- factor(grp, levels = c("control", "case"))
+    
+    # store the number of cases and controls per time point
+    if(!file.exists(paste0(outpath, comparison, "/Nsamples_perTime.txt"))){
+      m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
+      colnames(m) <- c("Day", c(strsplit2(comparison, split = "\\_")))
+      write.table(m, quote =FALSE, row.names = FALSE, col.names = TRUE, 
+                  file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
+    }else{
+      m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
+      write.table(m, quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE,
+                  file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
+    }
+    
+    if(min(table(grp)) >= min_sample_test){
+      # compute detection rate and cpm matrix
+      cdr <- scale(colMeans(temp$counts > 0))
+      els <- colSums(temp$counts)*(temp$samples$sf_notX/mean(temp$samples$sf_notX))
+      cpm <- t(t(temp$counts)/els)*1e6; rownames(cpm) <- temp$genes$ensembl
+      sca <- FromMatrix(exprsArray = log2(cpm + 1), 
+                        cData = data.frame(wellKey = names(grp), grp = grp, cdr = cdr),
+                        fData = data.frame(chromosome = temp$genes$chromosome, symbol = temp$genes$symbol, ensembl = temp$genes$ensembl, primerid = temp$genes$ensembl))
+      zlmdata <- zlm(~ cdr + grp, sca)
+      summaryCond <- summary(zlmdata, doLRT='grpcase') ; summaryDt <- summaryCond$datatable
+      mast <- merge(summaryDt[contrast=='grpcase' & component=='H',.(primerid, `Pr(>Chisq)`)],
+                    summaryDt[contrast=='grpcase' & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], by='primerid')
+      mast$AveCPM <- rowMeans(cpm)
+      mast$fdr <- p.adjust(mast$`Pr(>Chisq)`, method = "BH")
+      mast <- data.frame(gene_features[match(mast$primerid, gene_features$Ensembl.ID), c("Chromosome", "Gene.Symbol", "Ensembl.ID")], mast)
+      colnames(mast) <- c("chromosome_name", "mgi_symbol", "ensembl_gene_id", "primerid", "Pr..Chisq.", "coef", "ci.hi", "ci.lo", "AveCPM", "fdr")
+      mast <- mast[order(mast$fdr, decreasing = FALSE),]
       
-      # subset to grouping conditions only
-      temp <- dge[!(grepl(dge$genes$symbol, pattern = "^ERCC") | duplicated(dge$genes$ensembl)), dge$samples[,variable] %in% unlist(variable_levels)]
-      grp <- temp$samples[,variable]
-      grp <- ifelse(grp %in% variable_levels[[1]], "case", "control"); table(grp)
-      names(grp) <- temp$samples$sample
-      grp <- factor(grp, levels = c("control", "case"))
-      
-      # store the number of cases and controls per time point
-      if(!file.exists(paste0(outpath, comparison, "/Nsamples_perTime.txt"))){
-        m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
-        colnames(m) <- c("Day", c(strsplit2(comparison, split = "\\_")))
-        write.table(m, quote =FALSE, row.names = FALSE, col.names = TRUE, 
-                    file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
-      }else{
-        m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
-        write.table(m, quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE,
-                    file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
-      }
-      
-      if(min(table(grp)) >= min_sample_test){
-        # compute detection rate and cpm matrix
-        cdr <- scale(colMeans(temp$counts > 0))
-        els <- colSums(temp$counts)*(temp$samples$sf_notX/mean(temp$samples$sf_notX))
-        cpm <- t(t(temp$counts)/els)*1e6; rownames(cpm) <- temp$genes$ensembl
-        sca <- FromMatrix(exprsArray = log2(cpm + 1), 
-                          cData = data.frame(wellKey = names(grp), grp = grp, cdr = cdr),
-                          fData = data.frame(chromosome = temp$genes$chromosome, symbol = temp$genes$symbol, ensembl = temp$genes$ensembl, primerid = temp$genes$ensembl))
-        zlmdata <- zlm(~cdr + grp, sca)
-        summaryCond <- summary(zlmdata, doLRT='grpcase') ; summaryDt <- summaryCond$datatable
-        mast <- merge(summaryDt[contrast=='grpcase' & component=='H',.(primerid, `Pr(>Chisq)`)],
-                      summaryDt[contrast=='grpcase' & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], by='primerid')
-        mast$AveCPM <- rowMeans(cpm)
-        mast$fdr <- p.adjust(mast$`Pr(>Chisq)`, method = "BH")
-        mast <- data.frame(gene_features[match(mast$primerid, gene_features$Ensembl.ID), c("Chromosome", "Gene.Symbol", "Ensembl.ID")], mast)
-        colnames(mast) <- c("chromosome_name", "mgi_symbol", "ensembl_gene_id", "primerid", "Pr..Chisq.", "coef", "ci.hi", "ci.lo", "AveCPM", "fdr")
-        mast <- mast[order(mast$fdr, decreasing = FALSE),]
-        
-        # store results
-        save(mast, file = paste0(outpath, comparison, "/", time, ".RData"))
-        save(zlmdata, file = paste0(outpath, comparison, "/zlm_", time, ".RData"))
-        save(sca, file = paste0(outpath, comparison, "/sca_", time, ".RData"))
-      }
+      # store results
+      save(mast, file = paste0(outpath, comparison, "/", time, ".RData"))
+      save(zlmdata, file = paste0(outpath, comparison, "/zlm_", time, ".RData"))
+      save(sca, file = paste0(outpath, comparison, "/sca_", time, ".RData"))
     }
   }
 }
@@ -1008,11 +1044,14 @@ adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3,
 print("7.3) C: Represent DE genes through heatmap")
 
 print("7.3.1) Define plotting function")
-plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC = 2,
-                         outpath, is_log10CPMo1 = TRUE, abslog2FC_break = 7,
-                         colorPalette = c("black", "gold", "red"), paletteLength = 500,
-                         cellheight = 15, fontsize_col = 15, fontsize_row = 15, width = 15, cellwidth = 50, fontsize = 15,
-                         excludeFC = "|log2FC|<1", orderByXist = TRUE, orderbyFDR = FALSE){
+plot_heatmap <- function(all_de, 
+                         minFDR = 0.05, 
+                         minAbsFC = 1.5,
+                         outpath){
+  
+  # plot settings
+  cellheight <- 6; fontsize_col <- 6; fontsize_row <- 6; width <- 10; cellwidth  <- .5; fontsize <- 6
+  paletteLength <- 500; colorPalette <- c("black", "gold", "red"); abslog2FC_break <- 7
   
   # define heatmap coloring
   myColor <- c(colorRampPalette(colorPalette)(paletteLength))
@@ -1026,30 +1065,17 @@ plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC 
                       (abs(all_de$log2FC) >= log2(minAbsFC))&
                       (all_de$fdr <= minFDR),]
   
-  # repeat plot for Xlinked only and Autosomal+PosXlinked
-  # for(addlabel in c("all", "autosomal", "Xlinked")){
   for(addlabel in c("all")){
     if(addlabel == "all"){sig <- sig_all[!(sig_all$chromosome_name %in% "X" & sig_all$coef<0),]}
-    # if(addlabel == "autosomal"){sig <- sig_all[!sig_all$chromosome_name %in% "X",]}
-    # if(addlabel == "Xlinked"){sig <- sig_all[sig_all$chromosome_name %in% "X",]}
-    
-    # plot results for each time point --> Per cell heatmap
     heat_path <- paste0(outpath, comparison, "/Heatmap/PerCell/")
     if(nrow(sig)>1){
       for(d in days){
         dir.create(heat_path, showWarnings = FALSE, recursive = TRUE)
-        s <- sig[sig$day == d,]; s$log2FC <- s$coef; 
+        s <- sig[sig$day == d,]; s$log2FC <- s$coef
         
-        if(orderbyFDR){
-          # order results by FDR-sign
-          s$o <- ifelse(s$log2FC>0, s$fdr, -log10(s$fdr))
-          s <- s[order(s$o, decreasing = FALSE),]
-          orderlabel <- "_byFDR"
-        }else{
-          # order by FC
-          s <- s[order(s$log2FC, decreasing = TRUE),]
-          orderlabel <- "_byFC"
-        }
+        # order by FC
+        s <- s[order(s$log2FC, decreasing = TRUE),]
+        orderlabel <- "_byFC"
         
         if(nrow(s)>1){
           # store DE genes
@@ -1068,12 +1094,7 @@ plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC 
             levels <- seq_len(length(unique(dge$samples[[variable]])))
           }
           dge <- dge[, dge$samples[[variable]] %in% levels]
-          
-          if(is_log10CPMo1){
-            counts <- log10(t(t(dge$counts)/(dge$samples$sf_notX*colSums(dge$counts)))*1e6 + 1)
-          }else{
-            counts <- log10(t(t(dge$counts)/dge$samples$sf_notX) + 1)
-          }
+          counts <- log10(t(t(dge$counts)/(dge$samples$sf_notX*colSums(dge$counts)))*1e6 + 1)
           
           # subset matrix to cells in contrast and DE genes only --> compute average gene level per variable group
           avgexp <- counts[match(degenes_s, dge$genes$ensembl), ]
@@ -1105,24 +1126,14 @@ plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC 
           # produce heatmap
           title_label <- ifelse(is_log10CPMo1, "Avelog10CPM", "AveUMI")
           height <- cellheight*nrow(s)/30
-          avg_aut <- avgexp[!log2fc %in% excludeFC, ]
+          avg_aut <- avgexp[!log2fc %in% "|log2FC|<1", ]
           
           # order by Xist expression
-          if(orderByXist){
-            if(comparison == "XistHigh_XistLow"){
-              o <- order(counts["Xist",], decreasing = FALSE)
-              avg_aut <- avg_aut[, o]
-              m <- match(colnames(avg_aut), rownames(dge$samples))
-              annot_col <- data.frame(Levels = dge$samples[[variable]][m]); rownames(annot_col) <- colnames(avg_aut)
-            }
-            if(comparison == "HighXchrChange_LowXchrChange"){
-              annot_col$Xist <- counts["Xist", match(rownames(annot_col), colnames(counts))]
-              o <- order(annot_col$Levels, annot_col$Xist)
-              avg_aut <- avg_aut[, o]
-              m <- match(colnames(avg_aut), rownames(dge$samples))
-              annot_col <- data.frame(Levels = dge$samples[[variable]][m]); rownames(annot_col) <- colnames(avg_aut)
-            }
-          }
+          annot_col$Xist <- counts["Xist", match(rownames(annot_col), colnames(counts))]
+          o <- order(annot_col$Levels, annot_col$Xist)
+          avg_aut <- avg_aut[, o]
+          m <- match(colnames(avg_aut), rownames(dge$samples))
+          annot_col <- data.frame(Levels = dge$samples[[variable]][m]); rownames(annot_col) <- colnames(avg_aut)
           
           # gap between up and down regulated
           gprw <- which(!duplicated(s$log2FC>0))[2] - 1
@@ -1146,16 +1157,11 @@ plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC 
 }
 
 print("7.3.2) Produce heatmaps")
-comp <- names(contrasts)
 minFDR <- 0.01
 minAbsFC <- 1.5
-is_log10CPMo1 <- TRUE
-abslog2FC_break <- 7
 load(paste0(outpath, "XchrChange_HighLow_MAST.RData"))
 
-plot_heatmap(all_de = all_de, contrasts = contrasts, comparison = comp, minFDR = minFDR, minAbsFC = minAbsFC, 
-             is_log10CPMo1 = is_log10CPMo1, abslog2FC_break = abslog2FC_break, outpath = outpath,
-             cellheight = 6, fontsize_col = 6, fontsize_row = 6, width = 10, cellwidth = .5, fontsize = 6)
+plot_heatmap(all_de = all_de, minFDR = minFDR, minAbsFC = minAbsFC, outpath = outpath)
 
 print("7.3.3) Move and rename plots in figures folder")
 f <- paste0(outpath, names(contrasts), "/Heatmap/PerCell/", 
@@ -2003,8 +2009,8 @@ adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2,
 print("11.4) D: Xi/Xa ratio in two cell lines")
 
 print("11.4.1) Load data")
-load(paste0(datapath, "DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]
-load(paste0(datapath, "DGE_dXic_Cast.RData")); cast <- dge[!rownames(dge) %in% "Xist_5prime",]
+load(paste0(datapath, "NGF_DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]
+load(paste0(datapath, "NGF_DGE_dXic_Cast.RData")); cast <- dge[!rownames(dge) %in% "Xist_5prime",]
 df <- data.frame(day = rep(b6$samples$day, each = nrow(b6)), 
                  sample = rep(colnames(b6), each = nrow(b6)),
                  cell_line = rep(b6$samples$dXic, each = nrow(b6)),

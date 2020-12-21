@@ -42,66 +42,62 @@ print("3) B: Xist High vs Xist Low MAST DE analysis per time point")
 
 print("3.1) Define contrast and launch DE analyses")
 
-# define contrast(s)
+# define contrast and launch MAST
 contrasts <- list(XistHigh_XistLow = c("Xist_kmeans_class", list(5:7, 1:3)))
 min_sample_test <- 10; de_threshold <- 5e-2; days <- 1:4
+comparison <- "XistHigh_XistLow"
+variable <- "Xist_kmeans_class"
+variable_levels <- list(5:7, 1:3)
 
-# launch MAST analysis for each contrast
-for(cont in 1:length(contrasts)){
-  comparison <- names(contrasts)[cont]
-  variable <- unlist(contrasts[[cont]][1]); variable_levels <- contrasts[[cont]][2:3]
-  
-  if(!dir.exists(paste0(outpath, comparison))){
-    dir.create(path = paste0(outpath, comparison), showWarnings = FALSE, recursive = TRUE)
+if(!dir.exists(paste0(outpath, comparison))){
+  dir.create(path = paste0(outpath, comparison), showWarnings = FALSE, recursive = TRUE)
+  for (i in 1:length(days)) {
+    time <- days[i]; cat('Processing day', time, '..')
+    load(paste0(datapath, "DGE.RData"))
+    dge <- dge[, dge$samples$day == time]
+    dge$samples$sample <- rownames(dge$samples)
     
-    for (i in 1:length(days)) {
-      time <- days[i]; cat('Processing day', time, '..')
-      load(paste0(datapath, "DGE.RData"))
-      dge <- dge[, dge$samples$day == time]
-      dge$samples$sample <- rownames(dge$samples)
+    # subset to grouping conditions only
+    temp <- dge[!(grepl(dge$genes$symbol, pattern = "^ERCC") | duplicated(dge$genes$ensembl)), dge$samples[,variable] %in% unlist(variable_levels)]
+    grp <- temp$samples[,variable]
+    grp <- ifelse(grp %in% variable_levels[[1]], "case", "control"); table(grp)
+    names(grp) <- temp$samples$sample
+    grp <- factor(grp, levels = c("control", "case"))
+    
+    # store the number of cases and controls per time point
+    if(!file.exists(paste0(outpath, comparison, "/Nsamples_perTime.txt"))){
+      m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
+      colnames(m) <- c("Day", c(strsplit2(comparison, split = "\\_")))
+      write.table(m, quote =FALSE, row.names = FALSE, col.names = TRUE, 
+                  file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
+    }else{
+      m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
+      write.table(m, quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE,
+                  file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
+    }
+    
+    if(min(table(grp)) >= min_sample_test){
+      # compute detection rate and cpm matrix
+      cdr <- scale(colMeans(temp$counts > 0))
+      els <- colSums(temp$counts)*(temp$samples$sf_notX/mean(temp$samples$sf_notX))
+      cpm <- t(t(temp$counts)/els)*1e6; rownames(cpm) <- temp$genes$ensembl
+      sca <- FromMatrix(exprsArray = log2(cpm + 1), 
+                        cData = data.frame(wellKey = names(grp), grp = grp, cdr = cdr),
+                        fData = data.frame(chromosome = temp$genes$chromosome, symbol = temp$genes$symbol, ensembl = temp$genes$ensembl, primerid = temp$genes$ensembl))
+      zlmdata <- zlm(~ cdr + grp, sca)
+      summaryCond <- summary(zlmdata, doLRT='grpcase') ; summaryDt <- summaryCond$datatable
+      mast <- merge(summaryDt[contrast=='grpcase' & component=='H',.(primerid, `Pr(>Chisq)`)],
+                    summaryDt[contrast=='grpcase' & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], by='primerid')
+      mast$AveCPM <- rowMeans(cpm)
+      mast$fdr <- p.adjust(mast$`Pr(>Chisq)`, method = "BH")
+      mast <- data.frame(gene_features[match(mast$primerid, gene_features$Ensembl.ID), c("Chromosome", "Gene.Symbol", "Ensembl.ID")], mast)
+      colnames(mast) <- c("chromosome_name", "mgi_symbol", "ensembl_gene_id", "primerid", "Pr..Chisq.", "coef", "ci.hi", "ci.lo", "AveCPM", "fdr")
+      mast <- mast[order(mast$fdr, decreasing = FALSE),]
       
-      # subset to grouping conditions only
-      temp <- dge[!(grepl(dge$genes$symbol, pattern = "^ERCC") | duplicated(dge$genes$ensembl)), dge$samples[,variable] %in% unlist(variable_levels)]
-      grp <- temp$samples[,variable]
-      grp <- ifelse(grp %in% variable_levels[[1]], "case", "control"); table(grp)
-      names(grp) <- temp$samples$sample
-      grp <- factor(grp, levels = c("control", "case"))
-      
-      # store the number of cases and controls per time point
-      if(!file.exists(paste0(outpath, comparison, "/Nsamples_perTime.txt"))){
-        m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
-        colnames(m) <- c("Day", c(strsplit2(comparison, split = "\\_")))
-        write.table(m, quote =FALSE, row.names = FALSE, col.names = TRUE, 
-                    file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
-      }else{
-        m <- matrix(c(time, sum(grp == "case"), sum(grp == "control")), nrow = 1)
-        write.table(m, quote = FALSE, row.names = FALSE, col.names = FALSE, append = TRUE,
-                    file = paste0(outpath, comparison, "/Nsamples_perTime.txt"))
-      }
-      
-      if(min(table(grp)) >= min_sample_test){
-        # compute detection rate and cpm matrix
-        cdr <- scale(colMeans(temp$counts > 0))
-        els <- colSums(temp$counts)*(temp$samples$sf_notX/mean(temp$samples$sf_notX))
-        cpm <- t(t(temp$counts)/els)*1e6; rownames(cpm) <- temp$genes$ensembl
-        sca <- FromMatrix(exprsArray = log2(cpm + 1), 
-                          cData = data.frame(wellKey = names(grp), grp = grp, cdr = cdr),
-                          fData = data.frame(chromosome = temp$genes$chromosome, symbol = temp$genes$symbol, ensembl = temp$genes$ensembl, primerid = temp$genes$ensembl))
-        zlmdata <- zlm(~cdr + grp, sca)
-        summaryCond <- summary(zlmdata, doLRT='grpcase') ; summaryDt <- summaryCond$datatable
-        mast <- merge(summaryDt[contrast=='grpcase' & component=='H',.(primerid, `Pr(>Chisq)`)],
-                      summaryDt[contrast=='grpcase' & component=='logFC', .(primerid, coef, ci.hi, ci.lo)], by='primerid')
-        mast$AveCPM <- rowMeans(cpm)
-        mast$fdr <- p.adjust(mast$`Pr(>Chisq)`, method = "BH")
-        mast <- data.frame(gene_features[match(mast$primerid, gene_features$Ensembl.ID), c("Chromosome", "Gene.Symbol", "Ensembl.ID")], mast)
-        colnames(mast) <- c("chromosome_name", "mgi_symbol", "ensembl_gene_id", "primerid", "Pr..Chisq.", "coef", "ci.hi", "ci.lo", "AveCPM", "fdr")
-        mast <- mast[order(mast$fdr, decreasing = FALSE),]
-        
-        # store results
-        save(mast, file = paste0(outpath, comparison, "/", time, ".RData"))
-        save(zlmdata, file = paste0(outpath, comparison, "/zlm_", time, ".RData"))
-        save(sca, file = paste0(outpath, comparison, "/sca_", time, ".RData"))
-      }
+      # store results
+      save(mast, file = paste0(outpath, comparison, "/", time, ".RData"))
+      save(zlmdata, file = paste0(outpath, comparison, "/zlm_", time, ".RData"))
+      save(sca, file = paste0(outpath, comparison, "/sca_", time, ".RData"))
     }
   }
 }
@@ -164,11 +160,14 @@ adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(ou
 print("4) C: Represent DE genes through heatmap")
 
 print("4.1) Define plotting function")
-plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC = 2,
-                         outpath, is_log10CPMo1 = TRUE, abslog2FC_break = 7,
-                         colorPalette = c("black", "gold", "red"), paletteLength = 500,
-                         cellheight = 15, fontsize_col = 15, fontsize_row = 15, width = 15, cellwidth = 50, fontsize = 15,
-                         excludeFC = "|log2FC|<1", orderByXist = TRUE){
+plot_heatmap <- function(all_de, 
+                         minFDR = 0.05, 
+                         minAbsFC = 1.5,
+                         outpath){
+  
+  # plot settings
+  cellheight <- 6; fontsize_col <- 6; fontsize_row <- 6; width <- 10; cellwidth  <- .5; fontsize <- 6
+  paletteLength <- 500; colorPalette <- c("black", "gold", "red"); abslog2FC_break <- 7
   
   # define heatmap coloring
   myColor <- c(colorRampPalette(colorPalette)(paletteLength))
@@ -212,11 +211,7 @@ plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC 
           }
           dge <- dge[, dge$samples[[variable]] %in% levels]
           
-          if(is_log10CPMo1){
-            counts <- log10(t(t(dge$counts)/(dge$samples$sf_notX*colSums(dge$counts)))*1e6 + 1)
-          }else{
-            counts <- log10(t(t(dge$counts)/dge$samples$sf_notX) + 1)
-          }
+          counts <- log10(t(t(dge$counts)/(dge$samples$sf_notX*colSums(dge$counts)))*1e6 + 1)
           
           # subset matrix to cells in contrast and DE genes only --> compute average gene level per variable group
           avgexp <- counts[match(degenes_s, dge$genes$ensembl), ]
@@ -246,17 +241,15 @@ plot_heatmap <- function(all_de, contrasts, comparison, minFDR = 0.05, minAbsFC 
           color_annot <- list(Levels = colors_col, log2FC = colors_row, isX = colors_row_isX)
           
           # produce heatmap
-          title_label <- ifelse(is_log10CPMo1, "Avelog10CPM", "AveUMI")
+          title_label <- "Avelog10CPM"
           height <- cellheight*nrow(s)/30
-          avg_aut <- avgexp[!log2fc %in% excludeFC, ]
+          avg_aut <- avgexp[!log2fc %in% "|log2FC|<1", ]
           
           # order by Xist expression
-          if(orderByXist){
-            o <- order(counts["Xist",], decreasing = FALSE)
-            avg_aut <- avg_aut[, o]
-            m <- match(colnames(avg_aut), rownames(dge$samples))
-            annot_col <- data.frame(Levels = dge$samples[[variable]][m]); rownames(annot_col) <- colnames(avg_aut)
-          }
+          o <- order(counts["Xist",], decreasing = FALSE)
+          avg_aut <- avg_aut[, o]
+          m <- match(colnames(avg_aut), rownames(dge$samples))
+          annot_col <- data.frame(Levels = dge$samples[[variable]][m]); rownames(annot_col) <- colnames(avg_aut)
           
           # gap between up and down regulated
           gprw <- which(!duplicated(s$log2FC>0))[2] - 1
@@ -281,13 +274,8 @@ print("4.2) Produce heatmaps")
 comp <- names(contrasts)
 minFDR <- de_threshold
 minAbsFC <- 1.5
-is_log10CPMo1 <- TRUE
-abslog2FC_break <- 7
 load(paste0(outpath, "ALLresults.RData"))
-
-plot_heatmap(all_de = all_de, contrasts = contrasts, comparison = comp, minFDR = minFDR, minAbsFC = minAbsFC, 
-             is_log10CPMo1 = is_log10CPMo1, abslog2FC_break = abslog2FC_break, outpath = outpath,
-             cellheight = 6, fontsize_col = 6, fontsize_row = 6, width = 10, cellwidth = .5, fontsize = 6, orderByXist = TRUE)
+plot_heatmap(all_de = all_de, minFDR = minFDR, minAbsFC = minAbsFC, outpath = outpath)
 
 print("4.3) Move and rename plots in figures folder")
 f <- paste0(outpath, names(contrasts), "/Heatmap/PerCell/", c("day1_Avelog10CPM_0.05_autosomal_posXlinked.pdf", "day2_Avelog10CPM_0.05_autosomal_posXlinked.pdf"))

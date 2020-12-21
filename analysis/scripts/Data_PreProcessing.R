@@ -146,6 +146,27 @@ for(f in files_DGE){
   }
 }
 
+print("3.2.6) Bulk RNA-seq gene filtering")
+
+load(paste0(datapath, "DGE_TX1072.RData")); tx1072 <- dge
+load(paste0(datapath, "DGE_dXic.RData")); dXic <- dge
+counts <- cbind(tx1072$counts, dXic$counts)
+avecpm_unfiltered <- rowMeans(edgeR::cpm(counts))
+libsize <- colSums(counts)
+threshold <- as.numeric(edgeR::cpm(10, mean(libsize)))
+filtergenes <- names(avecpm_unfiltered[avecpm_unfiltered < threshold])
+table(dge$genes$symbol %in% filtergenes, dge$genes$chromosome)
+
+for(allele in c("", "_B6", "_Cast")){
+  for(CellLine in c("_TX1072", "_dXic")){
+    file <- paste0(datapath, "DGE", CellLine, allele, ".RData")
+    load(file)
+    dge <- dge[!rownames(dge) %in% filtergenes,]
+    save(dge, file = paste0(datapath, "GF_DGE", CellLine, allele, ".RData"))
+  }
+}
+
+
 
 print("4) Data normalization")
 
@@ -168,9 +189,28 @@ print("4.3) Store size factors in Spliced/Unspliced DGE lists")
 files <- paste0(datapath, list.files(path = datapath))
 files_DGE <- files[grepl(x = files, pattern = "data/CF_") & grepl(x = files, pattern = "pliced")]
 for(f in files_DGE){
-  load(f); dge$samples$sf_notX <- sizefact; dge$samples$eff_libsize_notX <- colSums(dge$counts)*dge$samples$sf_notX; save(dge, file = gsub(x = f, pattern = "CF_", replacement = "NCF_"))
+  load(f)
+  dge$samples$sf_notX <- sizefact
+  dge$samples$eff_libsize_notX <- colSums(dge$counts)*dge$samples$sf_notX
+  save(dge, file = gsub(x = f, pattern = "CF_", replacement = "NCF_"))
 }
 
+print("4.4) Bulk RNA-seq: Compute size factors on not-AS DGE list based on autosomal gene expression")
+load(paste0(datapath, "GF_DGE_TX1072.RData")); tx1072 <- dge[dge$genes$chromosome %in% c(1:19),]
+load(paste0(datapath, "GF_DGE_dXic.RData")); dXic <- dge[dge$genes$chromosome %in% c(1:19),]
+counts <- cbind(tx1072$counts, dXic$counts)
+tmm <- calcNormFactors(counts, method = "TMM")
+
+print("4.5) Bulk RNA-seq: Store size factors in DGE lists")
+for(allele in c("", "_B6", "_Cast")){
+  for(CellLine in c("_TX1072", "_dXic")){
+    file <- paste0(datapath, "GF_DGE", CellLine, allele, ".RData")
+    load(file)
+    dge$samples$sf_notX <- tmm[match(colnames(dge), names(tmm))] 
+    dge$samples$eff_libsize_notX <- colSums(dge$counts)*dge$samples$sf_notX 
+    save(dge, file = paste0(datapath, "NGF_DGE", CellLine, allele, ".RData"))
+  }
+}
 
 
 print("5) Cell classification")
