@@ -112,106 +112,55 @@ g <- sum_unspliced %>%
 adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, savefile = paste0(outpath, "B_Xchr_unspliced.pdf"))
 
 
-print("4) C: Allelic RNA velocity")
+print("4) C: X-chromosomal RNA velocity")
 
 print("4.1) Load data")
 
 # load cell features
 load(paste0(datapath, "DGE.RData"))
-features_cell <- c("day", "id", "xist_ratio", "Xist_ratio_class", "xchr_ratio", "sf_notX")
+features_cell <- c("day", "id", "xchr_ratio")
 cellfeatures <- dge$samples[, features_cell]
-cellfeatures$sf <- cellfeatures$sf_notX
-cellfeatures$xist_ratio <- as.numeric(cellfeatures$xist_ratio)
-cellfeatures$Xchr_ratio <- as.numeric(cellfeatures$xchr_ratio)
-cellfeatures$AXCR <- abs(cellfeatures$Xchr_ratio-0.5)
+cellfeatures$xchr_ratio <- as.numeric(cellfeatures$xchr_ratio)
 
-# load spliced and unspliced count matrices
+# load not-AS velocity fit
+load(paste0(path, "output/fig1_NotAS/notAS_vel.RData"))
+
+# load spliced AS count matrices
 load(paste0(datapath, "NCF_DGE_B6_Spliced.RData")); spliced_b6 <- dge
-load(paste0(datapath, "NCF_DGE_B6_Unspliced.RData")); unspliced_b6 <- dge
 load(paste0(datapath, "NCF_DGE_Cast_Spliced.RData")); spliced_cast <- dge
-load(paste0(datapath, "NCF_DGE_Cast_Unspliced.RData")); unspliced_cast <- dge
-
-spliced <- list(BL6 = spliced_b6$counts, CastEiJ = spliced_cast$counts)
-unspliced <- list(BL6 = unspliced_b6$counts, CastEiJ = unspliced_cast$counts)
-spliced$Both <- spliced$BL6 + spliced$CastEiJ
-unspliced$Both <- unspliced$BL6 + unspliced$CastEiJ
-cellfeatures$Xist <- spliced$Both["Xist",]
-cellfeatures$Xist_ratio_correct <- cellfeatures$xist_ratio
-cellfeatures$Xist_ratio_correct[is.na(cellfeatures$xist_ratio)|cellfeatures$Xist<5] <- 0.5
-cellfeatures$Xist_ratio_correct <- abs(cellfeatures$Xist_ratio_correct-0.5)
 genefeatures <- spliced_b6$genes
+spliced <- list(BL6 = spliced_b6$counts, CastEiJ = spliced_cast$counts)
 
-print("4.2) Compute X-linked B6-ratio matrix")
-
+print("4.2) Define spliced B6-ratio matrix")
 b6ratio <- spliced$BL6/(spliced$BL6 + spliced$CastEiJ)
-b6ratio[is.na(b6ratio)] <- 0.5 # 0/0 ratios are set to 0.5
-isX <- spliced_b6$genes$chromosome %in% "X"; table(isX)
-cell_Xcor <- cor(b6ratio[spliced_b6$genes$chromosome %in% "X",])
+b6ratio[is.na(b6ratio)] <- 0.5
 
-print("4.3) Remove genes with low spliced or unspliced gene expression")
-
-rm_s <- rowMeans(spliced$Both); rm_u <- rowMeans(unspliced$Both)
-summary(rm_s); summary(rm_u)
-keep <- (rm_s >= 0.5)&(rm_u >= 0.25); table(keep)
-spliced_filt <- lapply(spliced, function(x) x[keep,]); unspliced_filt <- lapply(unspliced, function(x) x[keep,])
-cells <- colnames(spliced_filt$Both)
-keep_genes <- intersect(rownames(spliced_filt$Both), genefeatures$symbol)
-genefeatures <- genefeatures[keep_genes,]
-
-print("4.4) Define cell-to-cell distance based on B6-ratio X-linked correlation, and restrict kNN choice to cells sequenced at the same time point")
-
-emat <- spliced_filt$Both; nmat <- unspliced_filt$Both
-celldist <- cell_Xcor
-days <- strsplit2(rownames(celldist), split = "\\_")[,1]; table(days)
-for(i in 1:nrow(celldist)){
-  celldist[i,][!days %in% days[i]] <- min(celldist[i,])
-}
-celldist_adj <- as.dist(1-celldist) # adjust correlation to be a distance matrix to feed to velocyto.R::balanced_knn funct.
-
-print("4.5) Compute velocities")
-
-ncores <- min(c(detectCores(), 10))
-fit.quantile <- 0.025; kcells <- 20
-neighbor_size <- 100; velocity_scale <- "sqrt"; 
-arrow.scale <- 5; arrow.lwd <- 1; arrowthick <- 4e-1; arrowidth <- 1e-1; arrowsharp <- 40
-AS_vel <- gene.relative.velocity.estimates(emat, nmat, 
-                                           kCells = kcells, 
-                                           cell.dist = celldist_adj,
-                                           fit.quantile = fit.quantile, 
-                                           n.cores = ncores)
-save(AS_vel, file = paste0(outpath, "AS_vel.RData"))
-
-print("4.6) Compute PCA cell embedding on X-linked features of B6-ratio matrix")
-
-isX <- as.character(genefeatures$chromosome[match(rownames(AS_vel$current), rownames(genefeatures))]) %in% "X"
-Xgenes <- rownames(AS_vel$current)[isX]
+# restrict B6-ratio matrix to X-linked genes fitted by not-AS rna velocity model
+isX <- spliced_b6$genes$chromosome[match(rownames(notAS_vel$current), rownames(spliced_b6$genes))] %in% "X"
+Xgenes <- rownames(notAS_vel$current)[isX]
 x0 <- b6ratio[match(Xgenes, rownames(b6ratio)),]
-x0.log <- x0
-cent <- rowMeans(x0.log)
 
-# PCA embedding
-epc <- pcaMethods::pca(t(x0.log - cent), center = F, nPcs = length(cent))
+print("4.3) Compute PCA cell embedding")
+cent <- rowMeans(x0)
+epc <- pcaMethods::pca(t(x0 - cent), center = F, nPcs = length(cent))
 epc@scores <- scale(epc@completeObs, scale = F, center = T) %*% epc@loadings
 curr_pos <- epc@scores
 emb <- cbind(curr_pos[,1], curr_pos[,2]); rownames(emb) <- rownames(curr_pos)
 m <- match(rownames(emb), cellfeatures$id)
-cellfeatures$Xchr_ratio <- as.numeric(cellfeatures$Xchr_ratio)
-cellfeatures$AXCR <- abs(cellfeatures$Xchr_ratio-0.5)
-features <- c("day", "Xchr_ratio", "Xist_ratio_class")
+features <- c("day", "xchr_ratio")
 sinfo <- cellfeatures[match(rownames(emb), cellfeatures$id), features]
 pca_ext <- data.frame(pca1 = emb[,1], pca2 = emb[,2], sinfo)
 
-# project velocities on PCA embedding
-colors <- data.frame(sinfo)
-colors$AXCR <- abs(colors$Xchr_ratio - 0.5)
-x <- show.velocity.on.embedding.cor(emb, vel = AS_vel, 
-                                    n=neighbor_size, scale=velocity_scale, 
-                                    cex=1.5, arrow.scale=arrow.scale, show.grid.flow=TRUE, 
-                                    min.grid.cell.mass=5, grid.n=20,
-                                    arrow.lwd=arrow.lwd, do.par=F, cell.border.alpha = 0.5,
+print("4.4) Project velocities on PCA embedding and plot")
+velocity_scale <- "sqrt"; arrow.scale <- 5; arrow.lwd <- 1; 
+arrowthick <- 4e-1; arrowidth <- 1e-1; arrowsharp <- 40
+x <- show.velocity.on.embedding.cor(emb, vel = notAS_vel, scale = velocity_scale, 
+                                    cex = 1.5, arrow.scale = arrow.scale, show.grid.flow = TRUE, 
+                                    min.grid.cell.mass = 5, arrow.lwd = arrow.lwd, 
+                                    do.par = F, cell.border.alpha = 0.5,
                                     return.details = TRUE)
 
-print("4.7) Plot")
+colors <- data.frame(sinfo)
 temp <- data.frame(emb, colors); gridvelo <- x$garrows
 x$garrows <- data.frame(x$garrows)
 x$garrows$dist <- sqrt((x$garrows$x0 - x$garrows$x1)^2 + (x$garrows$y0 - x$garrows$y1)^2)
@@ -222,7 +171,7 @@ cols <- c(allele_colors["B6"], "grey", allele_colors["Cast"])
 g <- temp %>%
   ggplot() + 
   theme_bw() + theme1 + 
-  geom_point(aes(x = X1, y = X2, fill = Xchr_ratio, color = Xchr_ratio), size = scattersize) + 
+  geom_point(aes(x = X1, y = X2, fill = xchr_ratio, color = xchr_ratio), size = scattersize) + 
   geom_segment(data = data.frame(x$garrows), linejoin='mitre',
                aes(x = x0, y = y0, xend = x1, yend = y1), size = arrowthick, alpha = 3/5, color = "black",
                arrow = arrow(length = unit(x$garrows$arrowidth, "inches"), angle = arrowsharp)) + 
@@ -232,7 +181,9 @@ g <- temp %>%
        y = paste0("PCA 2 (", round(epc@R2[2]*100, digits = 1), "%)"),
        fill = expression("X Chromosome Ratio [XCR = "*B6[chrX]*"/("*B6[chrX]+Cast[chrX]*")]")) + 
   guides(color = FALSE) 
-adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 5, savefile = paste0(outpath, "C_XCI_velocity.pdf"))
+adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 5, 
+            savefile = paste0(outpath, "C_Xchr_velocity.pdf"))
+
 
 
 print("5) D: Xist and X-chromosome allelic ratio")

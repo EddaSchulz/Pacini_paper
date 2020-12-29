@@ -106,7 +106,7 @@ save(notAS_vel, file = paste0(outpath, "notAS_vel.RData"))
 print("3.2) Compute notAS UMAP embedding")
 
 # settings
-mvg <- 500; umap_nPcs <- 50; umap_nn <- 20; neighbor_size <- 100
+mvg <- 500; umap_nPcs <- 50; umap_nn <- 20
 arrow <- 2.5; arrow.lwd <- 1; arrowthick <- 3e-1; arrowidth <- 5*1e-2; arrowsharp <- 40
 velocity_scale <- "sqrt"
 
@@ -143,9 +143,9 @@ colors <- data.frame(sinfo, t(expr_markers))
 colors$AXCR <- abs(colors$Xchr_ratio - 0.5)
 
 plot_features <- c("Time", "AXCR", markergenes); plot_list <- list()
-x <- show.velocity.on.embedding.cor(emb, vel = notAS_vel, n=neighbor_size, scale=velocity_scale, 
+x <- show.velocity.on.embedding.cor(emb, vel = notAS_vel, scale=velocity_scale, 
                                     cex=1.5, arrow.scale=10, show.grid.flow=TRUE, 
-                                    min.grid.cell.mass=5, grid.n=20,
+                                    min.grid.cell.mass=5,
                                     arrow.lwd=arrow.lwd, do.par=F, cell.border.alpha = 0.5,
                                     return.details = TRUE)
 
