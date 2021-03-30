@@ -1,4 +1,4 @@
-# Integrated analysis of Xist upregulation and gene silencing at the onset of random X-chromosome inactivation at high temporal and allelic resolution
+# Integrated analysis of Xist upregulation and X-chromosome inactivation with single-cell and single-allele resolution
 Guido Pacini, Ilona Dunkel, Norbert Mages, Verena Mutzel, Bernd Timmermann, Annalisa Marsico*, Edda G Schulz*
 
 Data and code used to perform preprocessing and analysis of scRNA-seq and bulk RNA-seq data of differentiating female embryonic stem cells. (https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE151009)
