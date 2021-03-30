@@ -45,7 +45,7 @@ adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3,
 
 
 
-print("3) C: Xi/Xa gene-wise ratio in two cell lines across replicates")
+print("3) C: Gene-wise Xi/Xa ratios in two cell lines across all replicate samples")
 
 print("3.1) Load data")
 load(paste0(datapath, "NGF_DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]
@@ -62,7 +62,7 @@ df <- df %>%
   dplyr::mutate(libsize_b6 = sum(b6), libsize_cast = sum(cast)) %>%
   as.data.frame()
 
-print("3.2) Remove genes on deletion locus")
+print("3.2) Remove genes on deletion (dXic) locus")
 df$Xi <- ifelse(df$cell_line == "dB6", df$cast, df$b6)
 df$Xa <- ifelse(df$cell_line == "dB6", df$b6, df$cast)
 dXic_locus <- 103182257:103955531
@@ -78,7 +78,7 @@ df_sum <- df[df$Chr %in% "X",] %>%
                    Xa_tot = sum(Xa))
 df_sum$tot <- df_sum$Xi_tot + df_sum$Xa_tot
 
-# compute gene-wise ratios removing genes with less than 50 AS UMIs in at least one cell line
+# compute gene-wise ratios removing genes with less than 50 AS UMI counts in at least one cell line
 minUMI <- 50; offset <- 1
 remove_genes <- unique(df_sum$Gene[df_sum$tot <= minUMI])
 temp <- df_sum[!df_sum$Gene %in% remove_genes,]; length(unique(df_sum$Gene))
@@ -113,7 +113,7 @@ adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3,
 
 
 
-print("4) D: Xi/Xa ratio for differentially silenced genes")
+print("4) D: Xi/Xa ratio for previously identified (scRNA-seq) differentially silenced genes")
 
 print("4.1) Load data")
 load(paste0(datapath, "NGF_DGE_dXic_B6.RData")); b6 <- dge[!rownames(dge) %in% "Xist_5prime",]

@@ -31,7 +31,7 @@ XX <- setOrderingFilter(XX, order_genes)
 XX <- reduceDimension(XX, method = 'DDRTree')
 XX <- orderCells(XX)
 
-# the origin is defined as the state with the maximum number of 0h cells
+# the origin is defined as the state with the maximum number of day0 cells
 GM_state <- function(cds){
   if (length(unique(pData(cds)$State)) > 1){
     T0_counts <- table(pData(cds)$State, pData(cds)$hour)[,"0"]
@@ -54,14 +54,6 @@ g1 <- plot_cell_trajectory(XX, color_by = "day",
   ggtitle(paste0("XX Pseudotime\nDDRTree: ", top_pdt_genes, " MVGs (FDR<0.01) across time")) +
   labs(color = "Time [days]")
 adjust_size(g = g1, panel_width_cm = 5, panel_height_cm = 5, savefile = paste0(outpath, "B_pdtXX_time.pdf"))
-
-g2 <- plot_cell_trajectory(XX, color_by = "Scaled_PDT", 
-                           cell_size = scattersize, cell_link_size = linesize, 
-                           show_branch_points = FALSE) + theme1 +
-  scale_color_gradient2(low = "black", mid = "black", high = "gold") + 
-  guides(color = guide_colourbar(barwidth = 4, barheight = 0.7)) +
-  ggtitle(paste0("XX Pseudotime\nDDRTree: ", top_pdt_genes, " MVGs (FDR<0.01) across time"))
-adjust_size(g = g2, panel_width_cm = 5, panel_height_cm = 5, savefile = paste0(outpath, "B_pdtXX_pdt.pdf"))
 
 
 print("3) C/D: UMAP embedding and RNA-velocity projections")
@@ -181,7 +173,6 @@ g <- umap_markers %>%
   ggplot() + 
   facet_grid(.~variable) +
   theme_bw() + theme1 +
-  # scale_y_reverse() +
   geom_point(aes(x = X1, y = X2, color = value), size = outliersize, shape = 20) + 
   scale_colour_gradientn(colours = c("black", "gold")) + 
   labs(x="", y = "", color = expression(log[10]*"(CPM + 1) values")) + 
@@ -203,7 +194,6 @@ df_melt$variable <- revalue(df_melt$variable, replace = c("xist_umi" = "Xist UMI
 df_melt$day <- factor(df_melt$day)
 
 print("4.2) Plot")
-# barplot
 nXistUnd$day <- factor(nXistUnd$day, levels = rev(levels(factor(nXistUnd$day))))
 g <- nXistUnd %>%
   ggplot(aes(x = day, y = (1-n)*100)) + 
@@ -229,7 +219,7 @@ adjust_size(g = g, panel_width_cm = 1.5, panel_height_cm = 3, savefile = paste0(
 
 
 
-print("5) F: X/A ratio using bootstrapping autosomal features (n= #x-linked genes)")
+print("5) F: Bootstrap X/A ratio: sampling autosomal features, with n = #x-linked genes")
 
 print("5.1) Bootstrapped X/A ratio")
 load(paste0(datapath, "DGE.RData"))

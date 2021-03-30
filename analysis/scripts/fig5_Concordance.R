@@ -5,7 +5,7 @@ f4path <- paste0(path, "output/fig4_deXistHighLow/")
 suppath <- paste0(path, "output/fig_Supplementary/")
 fdr_threshold <- 0.05
 
-print("2) A: Concordance between Xist and X-chromosome Change DE and Correlation analyses [d1 & d2]")
+print("2) A: Concordance between Xist and X-chromosome Change (dX) DE and Correlation analyses [days 1 and 2]")
 
 print("2.1) Load DE and Correlation analyses results")
 
@@ -68,7 +68,7 @@ results$gene_biotype <- bm$gene_biotype[match(results$mgi_symbol, bm$mgi_symbol)
 results <- results[!grepl(x = results$gene_biotype, pattern = "pseudogene"),]
 results <- results[!(results$chromosome_name %in% "X" & results$value < 0 & results$fdr <= fdr_threshold),]
 
-print("2.3) Compute number of significant hits per gene and day: FDR<0.05 & nhits>3")
+print("2.3) Compute number of significant hits per gene and day: FDR<=0.05 & nhits>3")
 
 # number of significant tests per gene
 results$significant <- results$fdr <= fdr_threshold
@@ -115,7 +115,7 @@ x <- temp %>% dplyr::group_by(mgi_symbol) %>% dplyr::summarise(m = max(abs(col))
 order_genes <- rev(as.character(x$mgi_symbol))
 temp$mgi_symbol <- factor(temp$mgi_symbol, levels = order_genes)
 
-# identify significant tests
+# label significant results
 temp$sig_label <- ifelse(temp$fdr <= fdr_threshold, "*", "")
 
 # plot
@@ -141,7 +141,7 @@ adjust_size(g = g, panel_width_cm = w, panel_height_cm = h,
             savefile = paste0(outpath, "A_XistXchr_Concordance.pdf"), 
             height = 10, width = 5)
 
-print("2.5) Heatmap - log2FC DE analyses")
+print("2.5) Heatmap - log2FC: MAST DE analyses")
 
 # subset data
 temp <- results[(results$mgi_symbol %in% order_genes)&(results$analysis == "DE"),]
@@ -175,7 +175,7 @@ adjust_size(g = g, panel_width_cm = w, panel_height_cm = h,
             height = 10, width = 5)
 
 
-print("2.6) Heatmap - Correlation analyses")
+print("2.6) Heatmap - Spearman's coefficient: Correlation analyses")
 
 # subset data
 temp <- results[(results$mgi_symbol %in% order_genes)&(results$analysis == "Correlation"),]

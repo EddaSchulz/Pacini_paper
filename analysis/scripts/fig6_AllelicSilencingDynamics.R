@@ -329,34 +329,31 @@ print("4.5) Plot results for Eif1ax gene")
 
 minvalue_pergene <- cell_values %>% dplyr::group_by(Gene) %>% dplyr::summarise(min = min(log2(XiXa_ratio_XistUnd)))
 
-for(gg in gene){
-  
-  minvalue <- minvalue_pergene$min[minvalue_pergene$Gene == gg]
-  t <- t50[t50$Gene == gg,]
-  
-  g <- cell_values[cell_values$Gene %in% gg,] %>%
-    ggplot() + 
-    theme_bw() + theme1 + facet_grid(XistGroup~.) +
-    geom_segment(data = t, aes(x = 0, y = log2(1/2), xend = t50, yend = log2(1/2), color = XistGroup), linetype = "dashed",
-                 show.legend = FALSE, size = linesize) +
-    geom_segment(data = t, aes(x = t50, y = minvalue, xend = t50, yend = log2(1/2), color = XistGroup), linetype = "dashed",
-                 show.legend = FALSE, size = linesize) + 
-    geom_hline(yintercept = 0, size = linesize, alpha = 1/2, linetype = "dashed") +
-    geom_point(aes(x = AXCR, y = log2(XiXa_ratio_XistUnd), color = XistGroup, alpha = XistGroup), 
-               size = scattersize, show.legend = FALSE) + 
-    geom_point(data = bin_values[bin_values$Gene %in% gg,], 
-               aes(x = AXCR, y = log2(XiXa_ratio_XistUnd), color = XistGroup), size = scattersize*binscatter_mult) + 
-    geom_abline(data = slopes[slopes$Gene %in% gg,], 
-                aes(intercept = intercept, slope = slope, color = XistGroup),
-                show.legend = FALSE, size = linesize) + 
-    scale_color_manual(values = color_alleles) + 
-    scale_alpha_manual(values = c(1/6, 1/4)) +
-    labs(x = "XCI progress [%]",
-         y = "Xi/Xa [log2]",
-         color = "") + 
-    scale_x_continuous(breaks = seq(0, 100, 50), limits = c(0, 100))
-  adjust_size(g = g, panel_width_cm = 1.5, panel_height_cm = 2, savefile = paste0(outpath, "D_GeneScheme_", gg, ".pdf"), strptext_col = 0)
-}
+minvalue <- minvalue_pergene$min[minvalue_pergene$Gene == gene]
+t <- t50[t50$Gene == gene,]
+
+g <- cell_values[cell_values$Gene %in% gene,] %>%
+  ggplot() + 
+  theme_bw() + theme1 + facet_grid(XistGroup~.) +
+  geom_segment(data = t, aes(x = 0, y = log2(1/2), xend = t50, yend = log2(1/2), color = XistGroup), linetype = "dashed",
+               show.legend = FALSE, size = linesize) +
+  geom_segment(data = t, aes(x = t50, y = minvalue, xend = t50, yend = log2(1/2), color = XistGroup), linetype = "dashed",
+               show.legend = FALSE, size = linesize) + 
+  geom_hline(yintercept = 0, size = linesize, alpha = 1/2, linetype = "dashed") +
+  geom_point(aes(x = AXCR, y = log2(XiXa_ratio_XistUnd), color = XistGroup, alpha = XistGroup), 
+             size = scattersize, show.legend = FALSE) + 
+  geom_point(data = bin_values[bin_values$Gene %in% gene,], 
+             aes(x = AXCR, y = log2(XiXa_ratio_XistUnd), color = XistGroup), size = scattersize*binscatter_mult) + 
+  geom_abline(data = slopes[slopes$Gene %in% gene,], 
+              aes(intercept = intercept, slope = slope, color = XistGroup),
+              show.legend = FALSE, size = linesize) + 
+  scale_color_manual(values = color_alleles) + 
+  scale_alpha_manual(values = c(1/6, 1/4)) +
+  labs(x = "XCI progress [%]",
+       y = "Xi/Xa [log2]",
+       color = "") + 
+  scale_x_continuous(breaks = seq(0, 100, 50), limits = c(0, 100))
+adjust_size(g = g, panel_width_cm = 1.5, panel_height_cm = 2, savefile = paste0(outpath, "D_GeneScheme_", gene, ".pdf"), strptext_col = 0)
 
 
 print("5) G: Gene-wise allele specific XP50 values")
@@ -367,7 +364,7 @@ mod_binned$SE50_b6 <- (-1 -mod_binned$int_b6)/(mod_binned$slope_b6); mod_binned$
 mod_binned$SE50_cast <- (-1 -mod_binned$int_cast)/(mod_binned$slope_cast); mod_binned$SE50_cast[mod_binned$SE50_cast<0] <- 100
 mod_binned$SE50_b6[mod_binned$SE50_b6>100] <- 100; mod_binned$SE50_cast[mod_binned$SE50_cast>100] <- 100
 
-# cluster SE50 values into 4 clusters
+# Allele specific K-means clustering (K=4) of XP50 (namely, SE50) values
 set.seed(0)
 kcenters <- 4; kiter <- 1e6
 features <- c("Gene", "FDR", "SE50_b6", "SE50_cast")
@@ -408,7 +405,7 @@ adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 5, savefile = paste0(ou
 
 
 
-print("6) E: Comparison of estimated XP values to previously determined silencing classes")
+print("6) E: Comparison of estimated XP50 values to previously determined silencing classes")
 
 print("6.1) Define function to update gene symbols")
 ncores <- min(c(detectCores(), 10))
@@ -515,7 +512,7 @@ gc <- rbind(data.frame(source = "Lisa", lisa[, features], compare = "B6"),
             data.frame(source = "Borensztein", bor[bor$group == "BC", features], compare = "Cast"),
             data.frame(source = "Borensztein", bor[bor$group == "CB", features], compare = "B6"))
 
-print("6.3) Combine with model XP estimates")
+print("6.3) Combine with model XP50 estimates")
 class_melt_all$Xist <- revalue(class_melt_all$variable, c("SE50_b6" = "BL6_MA", "SE50_cast" = "Cast_MA"))
 cm <- class_melt_all[!is.na(class_melt_all$se50),]
 cm$compare <- revalue(factor(cm$Xist), replace = c("BL6_MA" = "B6", "Cast_MA" = "Cast"))
@@ -526,7 +523,7 @@ gg$silgroup <- revalue(gg$compare, replace = c("B6" = "Xi = B6", "Cast" = "Xi = 
 gg$id <- paste0(gg$silgroup, "\n", gg$source)
 ngenes <- ddply(gg, .variables = .(Classification, id), summarize, n = length(gene))
 
-print("6.4) Plot XP50 values grouped based on previous silencing dynamics classification - Marks & Borensztein")
+print("6.4) Plot XP50 values grouped by previous silencing dynamics classification - Marks & Borensztein")
 
 ngenes_sub <- ngenes[!ngenes$id %in% "Xi = B6\nLisa",]
 gg_sub <- gg[!gg$source %in% "Lisa",]
@@ -551,7 +548,7 @@ g <- gg_sub %>%
        color = "")
 adjust_size(g = g, panel_width_cm = 4, panel_height_cm = 3, savefile = paste0(outpath, "E_Comparison_Marks&Borensztein.pdf"))
 
-print("6.4) Plot XP50 values grouped based on previous silencing dynamics classification - Sousa")
+print("6.4) Plot XP50 values grouped by previous silencing dynamics classification - Sousa")
 gc_lisa <- data.frame(lisa[, c("gene", "t50")], compare = "B6")
 m <- match(paste0(gc_lisa$gene, "_", gc_lisa$compare), paste0(cm$Gene, "_", cm$compare))
 gc_lisa$XT50 <- cm$se50[m]
@@ -595,7 +592,7 @@ g <- gcm_lisa %>%
        color = "")
 adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, savefile = paste0(outpath, "E_Comparison_Sousa.pdf"))
 
-print("7) F: Distance from Xist across K-means silencing classes")
+print("7) F: Average distance from Xist (start_position/2 + end_position/2) across K-means silencing classes")
 
 print("7.1) Compute average distance from Xist")
 m <- match(class_melt$Gene, bm$mgi_symbol); table(is.na(m))
@@ -651,7 +648,7 @@ adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 3, savefile = paste0(ou
             height = 3)
 
 
-print("8) H: Significantly differentially silenced genes")
+print("8) H: Differentially silenced genes")
 
 print("8.1) Load data")
 gene <- as.character(binresults$model_fit$Gene[binresults$model_fit$FDR<sigthreshold])

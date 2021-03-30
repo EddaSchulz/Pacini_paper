@@ -108,7 +108,7 @@ data <- rbind(data,
                          Xist = "Xist-MA"))
   
 
-print("4.3) Bar-Plot")
+print("4.3) Stacked barplot")
 data <- data[!data$Xist %in% "Xist+",]
 data$Xist <- factor(data$Xist, levels = c("Xist-MA", "BA"))
 cols <- c("#6F72B5", "#fa9fb5")

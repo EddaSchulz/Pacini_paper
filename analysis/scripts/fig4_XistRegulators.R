@@ -102,7 +102,7 @@ if(!dir.exists(paste0(outpath, comparison))){
   }
 }
 
-# store results
+# store MAST-DEA results across time points
 all_de <- c()
 for (i in 1:length(days)) {
   time <- days[i]; cat('Processing day', time, '..')
@@ -287,7 +287,7 @@ file.rename(from = f1, to = f2)
 
 print("5) D: Correlation analysis")
 
-print("5.1) Load data and launch gene-wise correlation analysis to Xist CPM expression")
+print("5.1) Load data and launch gene-wise Spearman's correlation analysis to Xist CPM expression")
 load(paste0(datapath, "DGE.RData"))
 dge$cpm <- t(t(dge$counts)/(colSums(dge$counts)*dge$samples$sf_notX))*1e6
 x <- data.frame(day = rep(dge$samples$day, each = nrow(dge)), 
@@ -322,7 +322,7 @@ temp$direction <- ifelse(temp$spr_Xist < 0, "Negative Xist regulator", "Positive
 temp$direction <- factor(temp$direction, levels = c("Positive Xist regulator", "Negative Xist regulator"))
 sig_de <- temp[(temp$fdr_Xist <= de_threshold),]
 
-print("5.3) Plot - Summarize correlation analysis results with barplot")
+print("5.3) Plot - Summarize results with barplot")
 de_barplot <- ddply(sig_de, .variables = .(day, isX, direction), summarize, n = length(day))
 all <- expand.grid(unique(de_barplot$day), unique(de_barplot$isX), unique(de_barplot$direction)) 
 all$id <- apply(all, 1, function(x) paste(x, collapse = "_"))

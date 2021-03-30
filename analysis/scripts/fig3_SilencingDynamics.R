@@ -3,7 +3,7 @@ outpath <- paste0(path, "output/fig3_GlobalSilencing/"); dir.create(path = outpa
 
 print("2) A: X Chromosome ratio and Xist detection")
 
-print("2.1) Load data and plot XR for cells with Xist_UMI = 0 and Xist_UMI>5")
+print("2.1) Load data and plot X-linked allelic ratio for cells with Xist_UMI = 0 (Xist-) and Xist_UMI>5 (Xist+)")
 colors <- rev(comparison_colors)
 temp <- res
 temp$Xchr_ratio_noXist <- temp$b6_X_noXist/(temp$b6_X_noXist + temp$cast_X_noXist)
@@ -29,7 +29,7 @@ g <- temp[!temp$Xist %in% "Xist+ cells [UMI<=5]",] %>%
 adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, savefile = paste0(outpath, "A_XCR_XistDetection.pdf"))
 
 
-print("3) B: Spliced and Unspliced X-reads")
+print("3) B: Spliced and Unspliced X-linked UMI counts")
 
 print("3.1) Load allele specific spliced and unspliced data")
 
@@ -66,7 +66,7 @@ m <- match(as_df$Cell, df$id)
 as_df <- data.frame(as_df, df[m, fields])
 as_df <- as_df[as_df$Chromosome %in% c(1:19, "X", "Y"),]
 
-print("3.2) Exclude Xist low and Skewed groups and plot total number of spliced and unspliced X-linked counts per cell")
+print("3.2) Exclude Xist low and Skewed groups and plot total number of spliced and unspliced UMI X-linked counts per cell")
 
 excludegroup <- c("Low", "Skewed")
 
@@ -135,12 +135,12 @@ print("4.2) Define spliced B6-ratio matrix")
 b6ratio <- spliced$BL6/(spliced$BL6 + spliced$CastEiJ)
 b6ratio[is.na(b6ratio)] <- 0.5
 
-# restrict B6-ratio matrix to X-linked genes fitted by not-AS rna velocity model
+# restrict B6-ratio matrix to those X-linked genes which could be fitted by not-AS rna velocity model
 isX <- spliced_b6$genes$chromosome[match(rownames(notAS_vel$current), rownames(spliced_b6$genes))] %in% "X"
 Xgenes <- rownames(notAS_vel$current)[isX]
 x0 <- b6ratio[match(Xgenes, rownames(b6ratio)),]
 
-print("4.3) Compute PCA cell embedding")
+print("4.3) Compute PCA cell embedding on X-linked B6-ratio matrix")
 cent <- rowMeans(x0)
 epc <- pcaMethods::pca(t(x0 - cent), center = F, nPcs = length(cent))
 epc@scores <- scale(epc@completeObs, scale = F, center = T) %*% epc@loadings
@@ -201,7 +201,7 @@ g <- res[!res$Xist_classification %in% exclude_less5XistUMI,] %>%
 adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, savefile = paste0(outpath, "D_XchrRatio_XistRatio.pdf"))
 
 
-print("6) E: X/A ratio dividing cells by Xist AS classification")
+print("6) E: Bootstrap X/A ratio separating cells by time and Xist AS classification")
 
 print("6.1) Load notAS data")
 

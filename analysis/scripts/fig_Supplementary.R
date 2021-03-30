@@ -210,7 +210,7 @@ adjust_size(g = g, panel_width_cm = 3, panel_height_cm = 3, savefile = paste0(ou
 
 print("3) Supplementary figure 3: Marker gene expression and X:A expression ratios")
 
-print("5.1) A: X:A ratio varying Xist UMI threshold")
+print("3.1) A: X:A ratio varying Xist UMI threshold")
 
 print("3.1.1) Load data")
 load(paste0(datapath, "DGE.RData"))
@@ -1448,6 +1448,8 @@ dev.off()
 
 print("8.2) C: DE analyses - known Xist regulators")
 
+regulators <- c("Nanog", "Klf2", "Klf4", "Prdm14", "Pou5f1", "Sox2", "Myc", "Zfp42", "Ctcf", "Tsix", "Yy1", "Rlim", "Ftx")
+
 print("8.2.1) Load Xist DE results")
 
 load(paste0(path, "output/fig4_deXistHighLow/ALLresults.RData"))
@@ -1492,8 +1494,6 @@ adjust_size(g = g, panel_width_cm = w, panel_height_cm = h,
 
 
 print("8.3) D: Correlation analyses - known Xist regulators")
-
-regulators <- c("Nanog", "Klf2", "Klf4", "Prdm14", "Pou5f1", "Sox2", "Myc", "Zfp42", "Ctcf", "Tsix", "Yy1", "Rlim", "Ftx")
 
 print("8.3.1) Load Xist correlation results")
 
@@ -1582,7 +1582,6 @@ temp_median <- temp %>%
 temp$group <- ifelse(temp$isX == "Autosomal", "Autosomal", paste0("X-linked\n", temp$Xist_classification))
 
 print("9.1.3) Plot")
-# setting y-limits to zoom in without changing boxplot -> NA values 
 remove_Xistgroups <- c("Low", "Skewed", "BA")
 g <- temp[temp$group %in% c("X-linked\nXist\nUndetected", "Autosomal"),] %>%  
   ggplot() +
@@ -1603,7 +1602,6 @@ adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3,
 print("9.2) B: B6/Cast ratio for X-linked genes (grouping Xist-Undetected, B6-MA or Cast-MA cells) over time")
 
 print("9.2.1) Plot")
-# setting y-limits to zoom in without changing boxplot -> NA values 
 Xlinked_groups <- c("X-linked\nXist\nUndetected", "X-linked\nXist-MA\n(Xi=B6)", "X-linked\nXist-MA\n(Xi=Cast)")
 g <- temp[temp$group %in% Xlinked_groups,] %>%  
   ggplot() +
@@ -2071,7 +2069,7 @@ adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3,
             savefile = paste0(outpath, "S11_D_XiXaRatio_deltaXic.pdf"), height = 2)
 
 
-print("11.5) E: Pyrosequencing - Control genes: B6/Total")
+print("11.5) F: Pyrosequencing - Control genes: B6/Total")
 
 print("11.5.1) Plot")
 g <- pyroseq[(pyroseq$is_hit != "DS gene")&(!pyroseq$Gene %in% "Xist"),] %>%
@@ -2089,11 +2087,11 @@ g <- pyroseq[(pyroseq$is_hit != "DS gene")&(!pyroseq$Gene %in% "Xist"),] %>%
        color = "") +
   scale_y_continuous(breaks = seq(0, 100, 25), limits = c(0, 100))
 adjust_size(g = g, panel_width_cm = 2, panel_height_cm = 2, 
-            savefile = paste0(outpath, "S11_E_PyrodXic_ControlGenes_B6ratio.pdf"), 
+            savefile = paste0(outpath, "S11_F_PyrodXic_ControlGenes_B6ratio.pdf"), 
             width = 10, height = 2)
 
 
-print("11.6) F: Pyrosequencing - Control genes: normalized Xi:Xa values")
+print("11.6) E: Pyrosequencing - Control genes: normalized Xi:Xa values")
 
 print("11.6.1) Load data")
 temp <- pyroseq[(pyroseq$is_hit != "DS gene")&(!pyroseq$Gene %in% "Xist"),]
@@ -2145,7 +2143,7 @@ g <- mr  %>%
        title = "5 X-linked genes") +
   scale_y_continuous(limits = c(-2.5, 1.5))
 adjust_size(g = g, panel_width_cm = 5, panel_height_cm = 3, 
-            savefile = paste0(outpath, "S11_F_PyrodXic_ControlGenes_Avglog2NormRatios.pdf"),
+            savefile = paste0(outpath, "S11_E_PyrodXic_ControlGenes_Avglog2NormRatios.pdf"),
             width = 5, height = 3)
 
 
@@ -2245,30 +2243,30 @@ print("12.3.1) Load data")
 
 # Xist - DE analysis
 load(paste0(f4path, "ALLresults.RData"))
-fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "fdr")
+fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "Pr..Chisq.", "fdr")
 xist_de <- all_de[, fields]
 
 # Xist - Correlation analysis
 load(paste0(f4path, "sprmcor.RData"))
 colnames(sprmcor) <- c("day", "mgi_symbol", "chromosome_name", "correlation", 
                        "droprate", "droprate_Xist", "n", "pvalue_Xist", "fdr")
-fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "fdr")
+fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "pvalue_Xist", "fdr")
 xist_cor <- sprmcor[, fields]
 
 # Xchr Change - DE analysis
 load(paste0(suppath, "XchrChange_HighLow_MAST.RData"))
-fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "fdr")
+fields <- c("day", "chromosome_name", "mgi_symbol", "coef", "Pr..Chisq.", "fdr")
 xchr_de <- all_de[, fields]
 
 # Xchr Change - Correlation analysis
 load(paste0(suppath, "cor_Xchr.RData"))
 colnames(sprmcor) <- c("day", "mgi_symbol", "chromosome_name", "correlation", 
                        "droprate", "n", "ypos", "pvalue", "fdr")
-fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "fdr")
+fields <- c("day", "chromosome_name", "mgi_symbol", "correlation", "pvalue", "fdr")
 xchr_cor <- sprmcor[, fields]
 
 print("12.3.2) Combine results")
-names <- c("day", "chromosome", "gene", "value", "fdr") 
+names <- c("day", "chromosome", "gene", "value", "pvalue", "fdr") 
 colnames(xist_de) <- colnames(xist_cor) <- colnames(xchr_de) <- colnames(xchr_cor) <- names
 res <- rbind(data.frame(test = "Xist-DE", xist_de),
              data.frame(test = "Xist-COR", xist_cor),
@@ -2293,19 +2291,23 @@ for(d in 1:4){
                   genes,
                   avgcpm,
                   x1$value[match(genes, x1$gene)],
+                  x1$pvalue[match(genes, x1$gene)],
                   x1$fdr[match(genes, x1$gene)],
                   x2$value[match(genes, x2$gene)],
+                  x2$pvalue[match(genes, x2$gene)],
                   x2$fdr[match(genes, x2$gene)],
                   x3$value[match(genes, x3$gene)],
+                  x3$pvalue[match(genes, x3$gene)],
                   x3$fdr[match(genes, x3$gene)],
                   x4$value[match(genes, x4$gene)],
+                  x4$pvalue[match(genes, x4$gene)],
                   x4$fdr[match(genes, x4$gene)])
   x <- as.matrix(x)
   colnames(x) <- c("Day", "Chromosome", "Gene Symbol", "Average CPM",
-                   "log2FC [MAST: Xist High vs Low]", "FDR [MAST: Xist High vs Low]",
-                   "Coefficient [Spearman: Gene CPM vs Xist CPM]", "FDR [Spearman: Gene CPM vs Xist CPM]",
-                   "log2FC [MAST: Xchr.Change High vs Low]", "FDR [MAST: Xchr.Change High vs Low]",
-                   "Coefficient [Pearson: Gene CPM vs Xchr.Change]", "FDR [Pearson: Gene CPM vs Xchr.Change]")
+                   "log2FC [MAST: Xist High vs Low]", "P-value [MAST: Xist High vs Low]", "FDR [MAST: Xist High vs Low]",
+                   "Coefficient [Spearman: Gene CPM vs Xist CPM]", "P-value [Spearman: Gene CPM vs Xist CPM]", "FDR [Spearman: Gene CPM vs Xist CPM]",
+                   "log2FC [MAST: Xchr.Change High vs Low]", "P-value [MAST: Xchr.Change High vs Low]", "FDR [MAST: Xchr.Change High vs Low]",
+                   "Coefficient [Pearson: Gene CPM vs Xchr.Change]", "P-value [Pearson: Gene CPM vs Xchr.Change]", "FDR [Pearson: Gene CPM vs Xchr.Change]")
   if(d==1){
     wb <- createWorkbook()
   }
