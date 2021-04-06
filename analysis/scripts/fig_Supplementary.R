@@ -2307,7 +2307,7 @@ for(d in 1:4){
                    "log2FC [MAST: Xist High vs Low]", "P-value [MAST: Xist High vs Low]", "FDR [MAST: Xist High vs Low]",
                    "Coefficient [Spearman: Gene CPM vs Xist CPM]", "P-value [Spearman: Gene CPM vs Xist CPM]", "FDR [Spearman: Gene CPM vs Xist CPM]",
                    "log2FC [MAST: Xchr.Change High vs Low]", "P-value [MAST: Xchr.Change High vs Low]", "FDR [MAST: Xchr.Change High vs Low]",
-                   "Coefficient [Pearson: Gene CPM vs Xchr.Change]", "P-value [Pearson: Gene CPM vs Xchr.Change]", "FDR [Pearson: Gene CPM vs Xchr.Change]")
+                   "Coefficient [Spearman: Gene CPM vs Xchr.Change]", "P-value [Spearman: Gene CPM vs Xchr.Change]", "FDR [Spearman: Gene CPM vs Xchr.Change]")
   if(d==1){
     wb <- createWorkbook()
   }
